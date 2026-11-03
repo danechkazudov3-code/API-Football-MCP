@@ -2,6 +2,7 @@
 
 import json
 import os
+from datetime import date
 from typing import Any
 
 import httpx
@@ -115,6 +116,16 @@ def _error_response(message: str, error_details: dict | None = None) -> dict[str
     if error_details:
         result["error_details"] = error_details
     return result
+
+
+def current_season(today: date | None = None) -> int:
+    """Return the current European-style season year (2026 for 2026/27).
+
+    Seasons are named by their starting year and start around July, so
+    January–June belongs to the previous year's season.
+    """
+    today = today or date.today()
+    return today.year if today.month >= 7 else today.year - 1
 
 
 def require_params(names: list[str], values: dict[str, Any]) -> str | None:

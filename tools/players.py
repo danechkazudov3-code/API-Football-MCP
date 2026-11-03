@@ -134,3 +134,42 @@ async def get_top_red_cards(league: int, season: int) -> dict:
     if err:
         return _error_response(err)
     return await api_request("/players/topredcards", {"league": league, "season": season})
+
+
+@mcp.tool()
+async def get_player_profiles(
+    player: int | None = None,
+    search: str | None = None,
+    page: int | None = None,
+) -> dict:
+    """Get player profiles (bio only, no statistics) across all leagues and seasons.
+
+    Args:
+        player: Player ID
+        search: Player last name (min 4 chars) — no league/team/season needed
+        page: Page number (250 results per page)
+
+    Unlike get_players, searching here does not require a league, team or season.
+    Returns player name, first/last name, age, birth date/place, nationality,
+    height, weight, number, position, and photo.
+    """
+    if search is not None and len(search) < 4:
+        return _error_response("Search term must be at least 4 characters long.")
+    return await api_request("/players/profiles", {
+        "player": player, "search": search, "page": page,
+    })
+
+
+@mcp.tool()
+async def get_player_teams(player: int) -> dict:
+    """Get every team a player has played for during their career, with the seasons at each.
+
+    Args:
+        player: Player ID (required)
+
+    Returns list of {team: {id, name, logo}, seasons: [YYYY, ...]}.
+    """
+    err = require_params(["player"], {"player": player})
+    if err:
+        return _error_response(err)
+    return await api_request("/players/teams", {"player": player})

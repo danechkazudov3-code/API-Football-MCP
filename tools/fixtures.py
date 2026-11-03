@@ -24,6 +24,7 @@ async def get_fixtures(
     to_date: str | None = None,
     round: str | None = None,
     status: str | None = None,
+    venue: int | None = None,
     timezone: str | None = None,
 ) -> dict:
     """Get fixtures (matches).
@@ -42,7 +43,12 @@ async def get_fixtures(
         to_date: End date range (YYYY-MM-DD, requires league+season)
         round: Round name (e.g., 'Regular Season - 1', requires league+season)
         status: Match status codes separated by dashes (e.g., 'NS-1H-HT-2H-FT')
+        venue: Venue ID of the fixture (combine with another filter, e.g. season+team)
         timezone: Timezone for match times (e.g., 'Europe/London')
+
+    Using 'ids' returns events, lineups, statistics and player stats for each
+    fixture in one call. Responses include 'extra' (added time per half) and
+    'standings' (whether the competition covers standings).
 
     Returns fixture details: teams, scores, venue, date, status, and more.
     """
@@ -50,7 +56,7 @@ async def get_fixtures(
         "id": id, "ids": ids, "live": live, "date": date,
         "league": league, "season": season, "team": team,
         "last": last, "next": next, "from": from_date, "to": to_date,
-        "round": round, "status": status, "timezone": timezone,
+        "round": round, "status": status, "venue": venue, "timezone": timezone,
     }
     return await api_request("/fixtures", params)
 
@@ -60,6 +66,8 @@ async def get_rounds(
     league: int,
     season: int,
     current: str | None = None,
+    dates: str | None = None,
+    timezone: str | None = None,
 ) -> dict:
     """Get available rounds for a league and season.
 
@@ -67,14 +75,18 @@ async def get_rounds(
         league: League ID (required)
         season: Season year (required)
         current: 'true' to get only the current round
+        dates: 'true' to include the dates of each round in the response
+        timezone: Timezone used for the round dates (e.g., 'Europe/London')
 
     Returns list of round names (e.g., 'Regular Season - 1', 'Quarter-finals').
+    With dates='true', each item is {"round": ..., "dates": ["YYYY-MM-DD", ...]}.
     """
     err = require_params(["league", "season"], {"league": league, "season": season})
     if err:
         return _error_response(err)
     return await api_request("/fixtures/rounds", {
         "league": league, "season": season, "current": current,
+        "dates": dates, "timezone": timezone,
     })
 
 
@@ -89,6 +101,7 @@ async def get_head_to_head(
     from_date: str | None = None,
     to_date: str | None = None,
     status: str | None = None,
+    venue: int | None = None,
     timezone: str | None = None,
 ) -> dict:
     """Get head-to-head fixtures between two teams.
@@ -102,7 +115,8 @@ async def get_head_to_head(
         next: Next N matches
         from_date: Start date (YYYY-MM-DD)
         to_date: End date (YYYY-MM-DD)
-        status: Match status filter
+        status: Match status codes separated by dashes (e.g., 'FT-AET-PEN')
+        venue: Filter by venue ID
         timezone: Timezone for match times
 
     Returns all historical and upcoming matches between the two teams.
@@ -113,7 +127,7 @@ async def get_head_to_head(
     return await api_request("/fixtures/headtohead", {
         "h2h": h2h, "date": date, "league": league, "season": season,
         "last": last, "next": next, "from": from_date, "to": to_date,
-        "status": status, "timezone": timezone,
+        "status": status, "venue": venue, "timezone": timezone,
     })
 
 
@@ -122,6 +136,7 @@ async def get_fixture_statistics(
     fixture: int,
     team: int | None = None,
     type: str | None = None,
+    half: str | None = None,
 ) -> dict:
     """Get match statistics for a fixture.
 
@@ -129,14 +144,16 @@ async def get_fixture_statistics(
         fixture: Fixture ID (required)
         team: Team ID to filter stats for one team
         type: Stat type filter (e.g., 'Shots on Goal', 'Ball Possession')
+        half: 'true' to also return first/second half stats
+              (adds 'statistics_1h' and 'statistics_2h' per team)
 
-    Returns stats like shots, possession, passes, fouls, corners, offsides, etc.
+    Returns stats like shots, possession, passes, fouls, corners, offsides, expected goals, etc.
     """
     err = require_params(["fixture"], {"fixture": fixture})
     if err:
         return _error_response(err)
     return await api_request("/fixtures/statistics", {
-        "fixture": fixture, "team": team, "type": type,
+        "fixture": fixture, "team": team, "type": type, "half": half,
     })
 
 

@@ -6,7 +6,7 @@ common first step when using the API.
 
 from __future__ import annotations
 
-from api_client import api_request, require_params, _error_response
+from api_client import api_request, current_season, require_params, _error_response
 
 import sys
 sys.path.insert(0, ".")
@@ -70,32 +70,53 @@ async def search_player(
     """Search for a football player by name and get their ID.
 
     Args:
-        name: Player name to search for (min 3 chars, e.g., 'Haaland', 'Messi', 'Salah')
-        league: League ID to search within (recommended — API requires league or team)
-        team: Team ID to search within (alternative to league)
-        season: Season year (defaults to 2024 if not provided)
+        name: Player name to search for (min 4 chars, e.g., 'Haaland', 'Messi', 'Salah')
+        league: League ID to search within (optional)
+        team: Team ID to search within (optional, alternative to league)
+        season: Season year with league/team (defaults to the current season)
 
-    IMPORTANT: The API requires either 'league' or 'team' along with 'season' when searching.
+    Without league or team, searches all player profiles by last name (no team info
+    in that mode — use get_player_squads or get_player_teams for it).
+    With league or team, searches that competition/team for the season and includes team.
     Common league IDs: 39=Premier League, 140=La Liga, 135=Serie A, 78=Bundesliga, 61=Ligue 1.
 
     Returns matching players with IDs, names, ages, nationalities, and current team.
 
-    Example: search_player('Haaland', league=39, season=2024) → player ID 1100
+    Example: search_player('Haaland') or search_player('Haaland', league=39) → player ID 1100
     """
     err = require_params(["name"], {"name": name})
     if err:
         return _error_response(err)
-    if len(name) < 3:
-        return _error_response("Search term must be at least 3 characters long.")
+    if len(name) < 4:
+        return _error_response("Search term must be at least 4 characters long.")
+
     if league is None and team is None:
-        return _error_response(
-            "Player search requires either 'league' or 'team' parameter. "
-            "Common league IDs: 39=Premier League, 140=La Liga, 135=Serie A, "
-            "78=Bundesliga, 61=Ligue 1, 2=Champions League, 3=Europa League."
-        )
+        result = await api_request("/players/profiles", {"search": name})
+        if not result.get("success"):
+            return result
+        players = []
+        for item in result.get("data", []):
+            p = item.get("player", {})
+            players.append({
+                "id": p.get("id"),
+                "name": p.get("name"),
+                "firstname": p.get("firstname"),
+                "lastname": p.get("lastname"),
+                "age": p.get("age"),
+                "nationality": p.get("nationality"),
+                "position": p.get("position"),
+                "photo": p.get("photo"),
+            })
+        return {
+            "success": True,
+            "results": len(players),
+            "data": players,
+            "paging": result.get("paging", {}),
+            "rate_limit_remaining": result.get("rate_limit_remaining"),
+        }
 
     if season is None:
-        season = 2024
+        season = current_season()
 
     result = await api_request("/players", {
         "search": name, "league": league, "team": team, "season": season,

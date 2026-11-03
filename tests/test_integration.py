@@ -299,10 +299,36 @@ async def test_live_bet_types():
 
 @pytest.mark.asyncio
 async def test_live_search_player_no_league():
-    """Verify proper error when searching player without league/team."""
+    """Searching without league/team falls back to /players/profiles."""
     result = await search_player("Messi")
-    assert result["success"] is False
-    assert "league" in result["error"].lower() or "team" in result["error"].lower()
+    assert result["success"] is True
+    assert any(p["id"] == 154 for p in result["data"])
+
+
+@pytest.mark.asyncio
+async def test_live_v393_endpoints():
+    """Endpoints added in 3.9.2/3.9.3 respond on the live API."""
+    from tools.players import get_player_profiles, get_player_teams
+    from tools.odds import get_live_bet_types
+    from tools.reference import get_api_status
+
+    status = await get_api_status()
+    assert status["success"] is True and "subscription" in status["data"]
+
+    profiles = await get_player_profiles(player=1460)
+    assert profiles["success"] is True and profiles["data"][0]["player"]["id"] == 1460
+
+    teams = await get_player_teams(1460)
+    assert teams["success"] is True and any(t["team"]["id"] == 42 for t in teams["data"])
+
+    bets = await get_live_bet_types()
+    assert bets["success"] is True and bets["results"] > 0
+
+    rounds = await get_rounds(39, 2025, dates="true")
+    assert rounds["success"] is True and "dates" in rounds["data"][0]
+
+    trophies = await get_trophies(players="276-1100")
+    assert trophies["success"] is True
 
 
 @pytest.mark.asyncio

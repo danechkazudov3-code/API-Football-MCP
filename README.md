@@ -4,7 +4,7 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that 
 
 ## Features
 
-- 40+ MCP tools covering teams, players, fixtures, standings, transfers, odds, and more
+- 44 MCP tools covering teams, players, fixtures, standings, transfers, odds, and more
 - Streamable HTTP, SSE, and stdio transports
 - Async HTTP client with rate-limit tracking and error handling
 - Docker support for easy deployment
@@ -110,7 +110,7 @@ Use these first to find IDs by name, then pass IDs to other tools.
 | Tool | Description |
 |------|-------------|
 | `search_team` | Search for a team by name (e.g., "Manchester", "Barcelona") |
-| `search_player` | Search for a player by name (requires league or team + season) |
+| `search_player` | Search for a player by name (optionally within a league or team) |
 | `search_league` | Search for a league/competition by name |
 | `search_coach` | Search for a coach/manager by name |
 | `search_venue` | Search for a stadium/venue by name |
@@ -122,7 +122,8 @@ Use these first to find IDs by name, then pass IDs to other tools.
 | `get_timezones` | List all supported timezones |
 | `get_countries` | List or search countries |
 | `get_seasons` | List all available seasons |
-| `get_leagues` | Get league info by ID, name, country, or season |
+| `get_leagues` | Get league info by ID, name, country, season, or team |
+| `get_api_status` | Account plan and today's request usage (free, doesn't count against quota) |
 
 ### Teams
 
@@ -140,6 +141,8 @@ Use these first to find IDs by name, then pass IDs to other tools.
 | `get_players` | Get player info and season statistics |
 | `get_player_squads` | Get current squad for a team, or find a player's team |
 | `get_player_seasons` | List available seasons for a player |
+| `get_player_profiles` | Player bios across all leagues, searchable by last name |
+| `get_player_teams` | Every team a player has played for, with seasons |
 | `get_top_scorers` | Top goal scorers for a league and season |
 | `get_top_assists` | Top assist providers for a league and season |
 | `get_top_yellow_cards` | Players with most yellow cards in a league and season |
@@ -197,7 +200,7 @@ Use these first to find IDs by name, then pass IDs to other tools.
 
 | Tool | Description |
 |------|-------------|
-| `get_injuries` | Current injuries filtered by league, team, player, fixture, or date |
+| `get_injuries` | Current injuries filtered by league, team, player, fixture(s), or date |
 
 ### Predictions
 
@@ -213,7 +216,8 @@ Use these first to find IDs by name, then pass IDs to other tools.
 | `get_live_odds` | Live/in-play betting odds |
 | `get_odds_mapping` | List of fixtures with available odds data |
 | `get_bookmakers` | List or search available bookmakers |
-| `get_bet_types` | List or search available bet types |
+| `get_bet_types` | List or search available pre-match bet types |
+| `get_live_bet_types` | List or search available in-play bet types |
 
 ## Common League IDs
 

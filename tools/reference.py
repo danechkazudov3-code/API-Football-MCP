@@ -55,6 +55,7 @@ async def get_leagues(
     country: str | None = None,
     code: str | None = None,
     season: int | None = None,
+    team: int | None = None,
     search: str | None = None,
     type: str | None = None,
     current: str | None = None,
@@ -67,7 +68,8 @@ async def get_leagues(
         name: Exact league name
         country: Country name (e.g., 'England')
         code: Country code (e.g., 'GB')
-        season: Season year (e.g., 2024)
+        season: Season year (e.g., 2026)
+        team: Team ID — leagues/cups this team has played in
         search: Search term (min 3 chars)
         type: 'league' or 'cup'
         current: 'true' or 'false' — only current leagues
@@ -77,6 +79,20 @@ async def get_leagues(
     """
     return await api_request("/leagues", {
         "id": id, "name": name, "country": country, "code": code,
-        "season": season, "search": search, "type": type,
+        "season": season, "team": team, "search": search, "type": type,
         "current": current, "last": last,
     })
+
+
+@mcp.tool()
+async def get_api_status() -> dict:
+    """Get API-Football account status: plan, subscription end date, and today's request usage.
+
+    This call does not count against the daily quota.
+    Returns subscription (plan, end, active) and requests (current, limit_day).
+    """
+    result = await api_request("/status")
+    # Drop the account holder's name/email — the server is often exposed without auth.
+    if result.get("success") and isinstance(result.get("data"), dict):
+        result["data"].pop("account", None)
+    return result

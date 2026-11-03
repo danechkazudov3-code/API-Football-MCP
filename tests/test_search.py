@@ -56,10 +56,13 @@ async def test_search_player_success(mock_api):
 
 
 @pytest.mark.asyncio
-async def test_search_player_missing_league():
+async def test_search_player_without_league_searches_profiles(mock_api):
+    mock_api.return_value = mock_httpx_response(data=[
+        {"player": {"id": 1100, "name": "E. Haaland"}},
+    ])
     result = await search_player("Haaland")
-    assert result["success"] is False
-    assert "league" in result["error"].lower() or "team" in result["error"].lower()
+    assert result["success"] is True
+    assert mock_api.call_args[0][0] == "/players/profiles"
 
 
 @pytest.mark.asyncio

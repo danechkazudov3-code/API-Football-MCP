@@ -276,3 +276,21 @@ async def get_bet_types(
     Common IDs: 1=Match Winner, 5=Goals Over/Under, 8=Both Teams Score, 12=Double Chance.
     """
     return await api_request("/odds/bets", {"id": id, "search": search})
+
+
+@mcp.tool()
+async def get_live_bet_types(
+    id: int | None = None,
+    search: str | None = None,
+) -> dict:
+    """Get available bet types for live/in-play odds.
+
+    Args:
+        id: Live bet type ID
+        search: Search bet type by name (min 3 chars)
+
+    Returns list of live bet types with ID and name.
+    Use the returned ID as the 'bet' param in get_live_odds. These IDs differ from
+    pre-match bet IDs (get_bet_types) and do not work with get_odds.
+    """
+    return await api_request("/odds/live/bets", {"id": id, "search": search})
