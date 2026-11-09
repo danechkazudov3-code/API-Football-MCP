@@ -42,6 +42,7 @@ async def test_scan_ranks_fixture_recommendations_without_hiding_no_bet(monkeypa
     assert result["success"] is True
     assert result["fixtures_found"] == 2
     assert result["fixtures_analyzed"] == 2
+    assert len(result["all_matches"]) == 2
     assert result["best_opportunity"]["fixture"]["id"] == 11
     assert result["ranked_opportunities"][1]["status"] == "NO_BET"
 
