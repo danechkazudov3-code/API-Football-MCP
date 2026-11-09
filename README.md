@@ -206,7 +206,8 @@ Use these first to find IDs by name, then pass IDs to other tools.
 
 | Tool | Description |
 |------|-------------|
-| `get_predictions` | API-Football's match prediction with win/draw probabilities, advice, and team comparison |\n| `predict_match_bet` | Experimental automatic pre-match pick, best returned bookmaker price, fair odds, EV, and visible candidate ranking |\n| `predict_live_match_bet` | Separate in-play model using current score, elapsed time, live shots, red cards, and live odds |\n| `backtest_league` | Chronological walk-forward probability evaluation on historical league fixtures (no ROI without historical odds) |
+| `get_predictions` | API-Football's match prediction with win/draw probabilities, advice, and team comparison |
+| `predict_match_bet` | Experimental automatic pre-match pick, best returned bookmaker price, fair odds, EV, and visible candidate ranking |\n| `predict_live_match_bet` | Separate in-play model using current score, elapsed time, live shots, red cards, and live odds |\n| `backtest_league` | Chronological walk-forward probability evaluation on historical league fixtures (no ROI without historical odds) |
 
 ### Odds
 
