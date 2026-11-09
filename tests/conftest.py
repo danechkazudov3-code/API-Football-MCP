@@ -86,5 +86,6 @@ def reset_api_client():
     import api_client
     api_client._client = None
     api_client._rate_limit_remaining = None
+    api_client._response_cache.clear()
     api_client.API_KEY = os.environ.get("API_FOOTBALL_KEY", "")
     yield
