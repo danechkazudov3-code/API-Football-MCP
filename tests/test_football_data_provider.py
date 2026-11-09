@@ -39,3 +39,14 @@ def test_parse_football_data_csv_rejects_wrong_schema():
             "Date,HomeTeam\n01/07/26,Ath Madrid\n",
             league_id=140, from_date="2026-07-01", to_date="2026-07-31"
         )
+
+
+def test_parse_football_data_csv_accepts_four_digit_and_iso_dates():
+    sample = """Date,HomeTeam,AwayTeam,FTHG,FTAG,BbAvH,BbAvD,BbAvA
+01/08/2026,Ath Madrid,Barcelona,1,2,2.1,3.4,3.2
+2026-08-08,Barcelona,Ath Madrid,2,0,1.7,3.8,4.6
+"""
+    fixtures = parse_football_data_csv(
+        sample, league_id=140, from_date="2026-08-01", to_date="2026-08-31"
+    )
+    assert len(fixtures) == 2
