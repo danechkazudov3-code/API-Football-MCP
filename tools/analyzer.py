@@ -170,8 +170,8 @@ away.get("name", "Away team"),
             else "PARTIAL_DATA_COLLECTION"
         ),
         "message": (
-            "Match data and recent team form collected. "
-            "Probability and betting value calculations are not yet implemented."
+            "Match data, recent team form and experimental Poisson forecast collected. "
+            "Use predict_match_bet for bookmaker price comparison and automatic candidate selection."
         ),
         "fixture": {
             "id": fixture_id,
