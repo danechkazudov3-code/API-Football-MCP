@@ -176,7 +176,7 @@ async def scan_best_bets(
         if isinstance(remaining, int) and remaining <= 2:
             break
 
-    if any(not entry.get("success") for entry in reports) and league_id is not None:
+    if any(not entry.get("success") for entry in reports):
         fallback = await fetch_open_matchday_scan(
             league_id, start.isoformat(), end.isoformat(), max_fixtures
         )
