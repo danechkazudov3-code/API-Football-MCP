@@ -70,6 +70,15 @@ def evaluate_candidate(
     result["fair_odds"] = round(1.0 / probability, 4)
     result["expected_value"] = round(probability * odds - 1.0, 6)
 
+    # The preferred coefficient band is a ranking preference, not a hard filter.
+    # Longshots and short-priced favourites remain visible for transparency.
+    if 1.65 <= odds <= 2.50:
+        result["odds_profile"] = "PREFERRED"
+    elif odds < 1.65:
+        result["odds_profile"] = "LOW_ODDS"
+    else:
+        result["odds_profile"] = "HIGH_VARIANCE"
+
     lower_bound = result.get("probability_lower_bound")
     reasons: list[str] = []
 
@@ -118,8 +127,14 @@ def select_primary_candidate(candidates: list[dict[str, Any]]) -> dict[str, Any]
         "INSUFFICIENT_DATA": 4,
     }
 
-    def key(candidate: dict[str, Any]) -> tuple[float, float, float]:
+    def key(candidate: dict[str, Any]) -> tuple[float, float, float, float]:
         status_rank = rank.get(candidate.get("status"), 5)
+        odds_profile_rank = {
+            "PREFERRED": 0,
+            "LOW_ODDS": 1,
+            "HIGH_VARIANCE": 2,
+            None: 3,
+        }.get(candidate.get("odds_profile"), 3)
         ev = candidate.get("conservative_expected_value")
         if ev is None:
             ev = candidate.get("expected_value")
@@ -131,6 +146,6 @@ def select_primary_candidate(candidates: list[dict[str, Any]]) -> dict[str, Any]
             probability_score = float(candidate.get("model_probability"))
         except (TypeError, ValueError):
             probability_score = float("-inf")
-        return status_rank, -ev_score, -probability_score
+        return status_rank, odds_profile_rank, -ev_score, -probability_score
 
     return min(candidates, key=key)
