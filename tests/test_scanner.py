@@ -106,12 +106,17 @@ async def test_scan_returns_api_error_and_quota_without_unbound_variable(monkeyp
             "data": [],
         }
 
+    async def fake_fallback(*_args, **_kwargs):
+        return {"success": False, "error": "Fallback unavailable", "source": "open-matchday"}
+
     monkeypatch.setattr(scanner, "api_request", fake_api)
+    monkeypatch.setattr(scanner, "fetch_open_matchday_scan", fake_fallback)
     result = await scan_best_bets(scan_date="2026-11-10")
 
     assert result["success"] is False
     assert result["stage"] == "fixture_discovery"
     assert result["error"] == "API key rejected"
+    assert result["fallback_error"] == "Fallback unavailable"
     assert result["rate_limit_remaining"] == 77
 
 
