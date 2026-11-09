@@ -14,7 +14,14 @@ mcp = FastMCP(
         "Most tools require numeric IDs (team, player, league, fixture). "
         "Season is typically a 4-digit year (e.g., 2024 for the 2024/25 season). "
         "Common league IDs: 39=Premier League, 140=La Liga, 135=Serie A, 78=Bundesliga, 61=Ligue 1, "
-        "2=Champions League, 3=Europa League."
+        "2=Champions League, 3=Europa League. "
+        "For automatic discovery of the best upcoming pre-match opportunities, call scan_best_bets first; "
+        "it scans a quota-limited fixture batch, ranks primary picks and keeps NO_BET/insufficient-data "
+        "matches visible. For one fixture, use analyze_match and predict_match_bet. "
+        "For an in-progress fixture, use predict_live_match_bet; the live model is separate from pre-match. "
+        "For historical probability-quality evaluation, use backtest_league. "
+        "All betting probabilities are experimental and unvalidated: never describe a pick as a proven "
+        "profitable bet or imply VALUE_BET is enabled. Explain missing odds/data and uncertainty."
     ),
     host="0.0.0.0",
     port=8111,
