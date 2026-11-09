@@ -9,6 +9,7 @@ from server import mcp
 from tools.recommendation import predict_match_bet
 from tools.open_matchday_provider import fetch_open_matchday_scan
 from tools.poisson_model import forecast_from_recent_form
+from tools.prediction_journal import record_scan_reports
 
 
 def _rank_key(entry: dict[str, Any]) -> tuple[int, int, float, float]:
@@ -80,8 +81,12 @@ def _format_fallback_result(
             "odds_available": False,
             "reason": forecast.get("reason") or "Probability forecast only; no bookmaker prices available.",
         })
+    journal = record_scan_reports(
+        fallback_reports, data_source=fallback.get("source") or "open-matchday"
+    )
     return {
         "success": True,
+        "journal": journal,
         "status": "FALLBACK_SCAN_COMPLETED" if fallback_reports else "NO_UPCOMING_FIXTURES",
         "data_source": fallback.get("source"),
         "scan_window": {"from": start.isoformat(), "to": end.isoformat()},
@@ -208,8 +213,10 @@ async def scan_best_bets(
         (entry for entry in reports if entry.get("primary_pick")),
         key=_rank_key,
     )
+    journal = record_scan_reports(reports, data_source="api-football")
     return {
         "success": True,
+        "journal": journal,
         "status": "SCAN_COMPLETED" if reports else "NO_UPCOMING_FIXTURES",
         "scan_window": {"from": start.isoformat(), "to": end.isoformat()},
         "timezone": timezone_name,
