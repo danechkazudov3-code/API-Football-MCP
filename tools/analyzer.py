@@ -105,7 +105,7 @@ def _summarize_team_form(team_id: int, team_name: str, result: dict[str, Any]) -
     }
 
 
-def _summarize_head_to_head(result: dict[str, Any]) -> dict[str, Any]:
+def _summarize_head_to_head(result: dict[str, Any], home_team_id: int, away_team_id: int) -> dict[str, Any]:
     if not result.get("success"):
         return {"available": False, "error": result.get("error", "Head-to-head data unavailable.")}
     rows = [
@@ -121,9 +121,11 @@ def _summarize_head_to_head(result: dict[str, Any]) -> dict[str, Any]:
         hg, ag = goals.get("home"), goals.get("away")
         if hg is None or ag is None:
             continue
-        if hg > ag:
+        current_home_goals = hg if home.get("id") == home_team_id else ag
+        current_away_goals = ag if away.get("id") == away_team_id else hg
+        if current_home_goals > current_away_goals:
             home_wins += 1
-        elif hg == ag:
+        elif current_home_goals == current_away_goals:
             draws += 1
         else:
             away_wins += 1
@@ -135,9 +137,9 @@ def _summarize_head_to_head(result: dict[str, Any]) -> dict[str, Any]:
     return {
         "available": bool(matches),
         "matches_played": len(matches),
-        "home_wins": home_wins,
+        "current_home_team_wins": home_wins,
         "draws": draws,
-        "away_wins": away_wins,
+        "current_away_team_wins": away_wins,
         "matches": matches,
         "note": "Historical H2H is contextual evidence, not the primary form signal.",
     }
@@ -211,7 +213,7 @@ async def analyze_match(fixture_id: int) -> dict[str, Any]:
     collected = await asyncio.gather(*requests)
     home_form = _summarize_team_form(home_id, home.get("name", "Home team"), collected[0])
     away_form = _summarize_team_form(away_id, away.get("name", "Away team"), collected[1])
-    h2h = _summarize_head_to_head(collected[2])
+    h2h = _summarize_head_to_head(collected[2], home_id, away_id)
     injuries = _summarize_injuries(collected[3])
 
     offset = 4
