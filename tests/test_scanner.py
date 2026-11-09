@@ -33,6 +33,7 @@ async def test_scan_ranks_fixture_recommendations_without_hiding_no_bet(monkeypa
                 "model_probability": 0.54,
             },
             "candidates": [{"selection": "Home win"}],
+            "match_analysis": {"recent_form": {"home": {"form": "WWDLW"}}},
         }
 
     monkeypatch.setattr(scanner, "api_request", fake_api)
@@ -44,6 +45,7 @@ async def test_scan_ranks_fixture_recommendations_without_hiding_no_bet(monkeypa
     assert result["fixtures_analyzed"] == 2
     assert len(result["all_matches"]) == 2
     assert result["best_opportunity"]["fixture"]["id"] == 11
+    assert result["best_opportunity"]["match_analysis"]["recent_form"]["home"]["form"] == "WWDLW"
     assert result["ranked_opportunities"][1]["status"] == "NO_BET"
 
 
