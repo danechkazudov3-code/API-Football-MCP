@@ -33,5 +33,5 @@ async def get_sidelined(
     if err:
         return _error_response(err)
     return await api_request("/sidelined", {
-        "player": player, "coach": coach, "players": players, "coaches": coaches,
+        "player": player, "coach": coach, "players": players, "coachs": coaches,
     })
