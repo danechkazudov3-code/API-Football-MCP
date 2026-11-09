@@ -296,3 +296,8 @@ MIT
 ## MyAnalytics Prediction Engine
 
 The prediction engine requirements and implementation roadmap are documented in [`docs/PREDICTION_ENGINE_SPEC.md`](docs/PREDICTION_ENGINE_SPEC.md). The first pure pricing/ranking utilities are in `tools/prediction.py`, with unit tests in `tests/test_prediction.py`. The experimental Poisson baseline now uses league goal baselines and home/away team scoring and conceding rates when available, with a shrunk recent-form fallback. A separate in-play model estimates goals remaining from match time, score, live shots and red cards. A chronological walk-forward backtest reports probability metrics without inventing ROI when historical odds are unavailable. The MCP tool `predict_match_bet(fixture_id)` selects a primary pre-match candidate, compares supported markets with the best prices returned across available bookmakers, and keeps all candidates visible. The model is not calibrated or backtested: positive point-estimate EV is capped at LEAN, and VALUE_BET remains disabled until validation. See `docs/RECOMMENDATION_TOOL.md` and `docs/BACKTESTING_AND_LIVE.md`.
+
+
+### Browser Backtest Interface
+
+A small password-protected browser interface is available at `/tester` on the deployed service. Set the Render environment variable `ANALYTICS_DASHBOARD_TOKEN` to a private access code. The page sends it only as a Bearer token to the same service; the API-Football key remains server-side. The `/api/backtest` endpoint runs the same chronological walk-forward evaluator as `backtest_league`. Keep the access code private. Each run consumes API-Football request quota and reports probability metrics only, not ROI.
