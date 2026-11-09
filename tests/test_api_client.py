@@ -138,3 +138,28 @@ def test_error_response():
     assert result["success"] is False
     assert result["error"] == "Something went wrong"
     assert result["error_details"] == {"field": "error"}
+
+
+@pytest.mark.asyncio
+async def test_cache_reuses_successful_historical_fixture_request(mock_api):
+    import api_client
+
+    mock_api.return_value = mock_httpx_response(data=[{"fixture": {"id": 1}}])
+    params = {"team": 50, "last": 5}
+    first = await api_request("/fixtures", params)
+    second = await api_request("/fixtures", params)
+
+    assert first["success"] is True
+    assert second["data"] == first["data"]
+    assert mock_api.call_count == 1
+    assert len(api_client._response_cache) == 1
+
+
+@pytest.mark.asyncio
+async def test_live_odds_requests_bypass_cache(mock_api):
+    mock_api.return_value = mock_httpx_response(data=[{"fixture": {"id": 1}}])
+
+    await api_request("/odds/live", {"fixture": 123})
+    await api_request("/odds/live", {"fixture": 123})
+
+    assert mock_api.call_count == 2
