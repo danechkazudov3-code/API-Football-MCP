@@ -8,6 +8,8 @@ from typing import Any
 import httpx
 from dotenv import load_dotenv
 
+from cache import TTLCache, cache_ttl
+
 load_dotenv()
 
 BASE_URL = "https://v3.football.api-sports.io"
@@ -16,6 +18,7 @@ TIMEOUT = 30.0
 
 _client: httpx.AsyncClient | None = None
 _rate_limit_remaining: int | None = None
+_response_cache = TTLCache(max_entries=512)
 
 
 async def get_client() -> httpx.AsyncClient:
@@ -51,6 +54,14 @@ async def api_request(endpoint: str, params: dict[str, Any] | None = None) -> di
         for k, v in params.items():
             if v is not None:
                 clean_params[k] = v
+
+    ttl = cache_ttl(endpoint, clean_params)
+    cache_key = TTLCache.make_key(endpoint, clean_params)
+    if ttl:
+        cached = _response_cache.get(cache_key)
+        if cached is not None:
+            cached["rate_limit_remaining"] = _rate_limit_remaining
+            return cached
 
     try:
         client = await get_client()
@@ -96,13 +107,16 @@ async def api_request(endpoint: str, params: dict[str, Any] | None = None) -> di
         if isinstance(errors, list) and errors:
             return _error_response(f"API error — {'; '.join(str(e) for e in errors)}")
 
-    return {
+    result = {
         "success": True,
         "results": data.get("results", 0),
         "data": data.get("response", []),
         "paging": data.get("paging", {}),
         "rate_limit_remaining": _rate_limit_remaining,
     }
+    if ttl:
+        _response_cache.set(cache_key, result, ttl)
+    return result
 
 
 def _error_response(message: str, error_details: dict | None = None) -> dict[str, Any]:
