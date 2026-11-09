@@ -4,7 +4,7 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that 
 
 ## Features
 
-- 44 MCP tools covering teams, players, fixtures, standings, transfers, odds, and more
+- 45 MCP tools covering teams, players, fixtures, standings, transfers, odds, and automatic match recommendations
 - Streamable HTTP, SSE, and stdio transports
 - Async HTTP client with rate-limit tracking and error handling
 - Docker support for easy deployment
@@ -206,7 +206,7 @@ Use these first to find IDs by name, then pass IDs to other tools.
 
 | Tool | Description |
 |------|-------------|
-| `get_predictions` | Match prediction with win/draw probabilities, advice, and team comparison |
+| `get_predictions` | API-Football's match prediction with win/draw probabilities, advice, and team comparison |\n| `predict_match_bet` | Experimental automatic pre-match pick, best returned bookmaker price, fair odds, EV, and visible candidate ranking |
 
 ### Odds
 
@@ -287,4 +287,4 @@ MIT
 
 ## MyAnalytics Prediction Engine
 
-The prediction engine requirements and implementation roadmap are documented in [`docs/PREDICTION_ENGINE_SPEC.md`](docs/PREDICTION_ENGINE_SPEC.md). The first pure pricing/ranking utilities are in `tools/prediction.py`, with unit tests in `tests/test_prediction.py`. The current analyzer collects fixture data and recent form; it does **not** yet calculate validated probabilities, fair odds, expected value, or betting recommendations. The specification requires automatic primary-candidate selection while keeping LEAN, WATCHLIST, NO_BET, and INSUFFICIENT_DATA candidates visible. No single bookmaker is hardwired as the required provider.
+The prediction engine requirements and implementation roadmap are documented in [`docs/PREDICTION_ENGINE_SPEC.md`](docs/PREDICTION_ENGINE_SPEC.md). The first pure pricing/ranking utilities are in `tools/prediction.py`, with unit tests in `tests/test_prediction.py`. The experimental Poisson baseline now calculates score and market probabilities. The MCP tool `predict_match_bet(fixture_id)` selects a primary pre-match candidate, compares supported markets with the best prices returned across available bookmakers, and keeps all candidates visible. The model is not calibrated or backtested: positive point-estimate EV is capped at LEAN, and VALUE_BET remains disabled until validation. See `docs/RECOMMENDATION_TOOL.md`.
