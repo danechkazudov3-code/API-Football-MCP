@@ -26,7 +26,7 @@ def test_live_stats_adjust_pressure_but_are_bounded():
 
 
 def test_final_probabilities_respect_current_score():
-    probs = derive_live_probabilities(0.05, 0.05, 2, 0)
+    probs = derive_live_probabilities(0.05, 0.05, 3, 0)
     assert probs["home_win"] > 0.95
     assert probs["home_win"] + probs["draw"] + probs["away_win"] == pytest.approx(1.0)
     assert probs["over_2_5"] > 0.99
