@@ -57,6 +57,7 @@ async def scan_best_bets(
     if league_id is not None:
         params["league"] = league_id
     fixtures_result = await api_request("/fixtures", params)
+    remaining_quota = fixtures_result.get("rate_limit_remaining")
     if not fixtures_result.get("success"):
         return {
             "success": False, "stage": "fixture_discovery",
@@ -71,7 +72,6 @@ async def scan_best_bets(
     upcoming.sort(key=lambda item: (item.get("fixture") or {}).get("date") or "")
     selected = upcoming[:max_fixtures]
     reports: list[dict[str, Any]] = []
-    remaining_quota = fixtures_result.get("rate_limit_remaining")
 
     # Sequential calls avoid a burst against the user's limited daily API quota.
     for item in selected:
@@ -118,5 +118,5 @@ async def scan_best_bets(
             "Experimental model; ranking is not proof of positive long-term ROI. "
             "VALUE_BET remains disabled until out-of-sample validation."
         ),
-        "rate_limit_remaining": fixtures_result.get("rate_limit_remaining"),
+        "rate_limit_remaining": remaining_quota,
     }
