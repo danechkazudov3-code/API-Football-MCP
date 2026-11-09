@@ -18,6 +18,19 @@ def _team_key(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", (name or "").strip().lower())
 
 
+def _parse_match_date(raw: str) -> date | None:
+    """Accept Football-Data's usual DD/MM/YY plus common four-digit/ISO variants."""
+    value = (raw or "").strip()
+    if not value:
+        return None
+    for fmt in ("%d/%m/%y", "%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
+        try:
+            return datetime.strptime(value, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
 def _number(row: dict[str, str], key: str) -> float | None:
     raw = (row.get(key) or "").strip()
     if not raw:
@@ -46,8 +59,10 @@ def parse_football_data_csv(
     parsed: list[tuple[date, dict[str, str], int, int]] = []
     team_names: set[str] = set()
     for row in reader:
+        match_date = _parse_match_date(row.get("Date") or "")
+        if match_date is None:
+            continue
         try:
-            match_date = datetime.strptime((row.get("Date") or "").strip(), "%d/%m/%y").date()
             home_goals = int(row["FTHG"])
             away_goals = int(row["FTAG"])
         except (ValueError, TypeError, KeyError):
@@ -119,6 +134,10 @@ async def fetch_football_data_fixtures(
         fixtures = parse_football_data_csv(
             content, league_id=league_id, from_date=from_date, to_date=to_date
         )
+        diagnostic_reader = csv.DictReader(io.StringIO(content.lstrip("\\ufeff")))
+        diagnostic_rows = list(diagnostic_reader)
+        date_samples = list(dict.fromkeys((row.get("Date") or "").strip() for row in diagnostic_rows if (row.get("Date") or "").strip()))[:5]
+        rows_with_parseable_dates = sum(_parse_match_date(row.get("Date") or "") is not None for row in diagnostic_rows)
     except httpx.HTTPStatusError as exc:
         return {
             "success": False,
@@ -128,12 +147,30 @@ async def fetch_football_data_fixtures(
         }
     except (httpx.HTTPError, ValueError) as exc:
         return {"success": False, "error": f"Could not load historical CSV: {exc}", "source": SOURCE_NAME, "url": url}
+    if not fixtures:
+        return {
+            "success": False,
+            "error": "CSV was downloaded but no completed matches were parsed in the requested date range.",
+            "source": SOURCE_NAME,
+            "url": url,
+            "diagnostics": {
+                "csv_rows": len(diagnostic_rows),
+                "rows_with_parseable_dates": rows_with_parseable_dates,
+                "date_samples": date_samples,
+                "requested_from": from_date,
+                "requested_to": to_date,
+                "csv_columns": diagnostic_reader.fieldnames,
+            },
+        }
     return {
         "success": True,
         "source": SOURCE_NAME,
         "url": url,
         "data": fixtures,
         "fixtures_count": len(fixtures),
+        "csv_rows": len(diagnostic_rows),
+        "rows_with_parseable_dates": rows_with_parseable_dates,
+        "date_samples": date_samples,
         "odds_available": sum(
             all((item.get("historical_odds") or {}).get(key) for key in ("home", "draw", "away"))
             for item in fixtures
