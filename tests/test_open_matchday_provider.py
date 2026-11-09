@@ -21,4 +21,4 @@ def test_open_matchday_form_uses_only_completed_matches_and_limits_to_ten():
     assert form["matches_played"] == 10
     assert len(form["matches"]) == 10
     assert form["average_goals_scored"] is not None
-    assert form["venue_splits"] if "venue_splits" in form else True
+    assert form["wins"] + form["draws"] + form["losses"] == 10
