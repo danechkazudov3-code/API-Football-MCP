@@ -29,6 +29,57 @@ def _rank_key(entry: dict[str, Any]) -> tuple[int, int, float, float]:
     return status, odds_profile, -ev, -probability
 
 
+
+def _format_fallback_result(
+    fallback: dict[str, Any], start: date, end: date, timezone_name: str,
+    api_error: str | None,
+) -> dict[str, Any]:
+    fallback_reports = []
+    for entry in fallback.get("fixtures") or []:
+        forecast = forecast_from_recent_form(
+            entry["model_home_form"], entry["model_away_form"]
+        )
+        fallback_reports.append({
+            "fixture": entry["fixture"],
+            "success": bool(forecast.get("available")),
+            "status": "INSUFFICIENT_DATA" if not forecast.get("available") else "NO_BET",
+            "primary_pick": None,
+            "forecast_candidates": [
+                {
+                    **candidate, "status": "INSUFFICIENT_DATA", "odds": None,
+                    "reason": "No bookmaker odds are supplied by the fallback source; fair odds are model estimates only.",
+                }
+                for candidate in (forecast.get("candidates") or [])
+            ],
+            "forecast": forecast,
+            "match_analysis": {
+                "recent_form": {"home": entry["home_form"], "away": entry["away_form"]},
+                "venue_form": {"home": entry["home_venue_form"], "away": entry["away_venue_form"]},
+                "head_to_head": {"available": False, "reason": "Not supplied by fallback dataset."},
+                "injuries": {"available": False, "reason": "Not supplied by fallback dataset."},
+                "lineups": {"available": False, "reason": "Not supplied by fallback dataset."},
+            },
+            "odds_available": False,
+            "reason": forecast.get("reason") or "Probability forecast only; no bookmaker prices available.",
+        })
+    return {
+        "success": True,
+        "status": "FALLBACK_SCAN_COMPLETED" if fallback_reports else "NO_UPCOMING_FIXTURES",
+        "data_source": fallback.get("source"),
+        "scan_window": {"from": start.isoformat(), "to": end.isoformat()},
+        "timezone": timezone_name,
+        "fixtures_found": fallback.get("fixtures_found_in_window", 0),
+        "fixtures_selected": len(fallback_reports),
+        "fixtures_analyzed": len(fallback_reports),
+        "ranked_opportunities": [],
+        "all_matches": fallback_reports,
+        "best_opportunity": None,
+        "model_validated": False,
+        "api_football_error": api_error,
+        "data_limitations": fallback.get("data_limitations", []),
+        "warning": "Fallback produces experimental probabilities only. No odds, injuries, lineups, or live data; do not treat any selection as a bet recommendation.",
+    }
+
 @mcp.tool()
 async def scan_best_bets(
     scan_date: str | None = None,
@@ -79,53 +130,10 @@ async def scan_best_bets(
                 "fallback_source": fallback.get("source", "open-matchday"),
                 "rate_limit_remaining": fixtures_result.get("rate_limit_remaining"),
             }
-        fallback_reports = []
-        for entry in fallback.get("fixtures") or []:
-            forecast = forecast_from_recent_form(
-                entry["model_home_form"], entry["model_away_form"]
-            )
-            fallback_reports.append({
-                "fixture": entry["fixture"],
-                "success": bool(forecast.get("available")),
-                "status": "INSUFFICIENT_DATA" if not forecast.get("available") else "NO_BET",
-                "primary_pick": None,
-                "forecast_candidates": [
-                    {
-                        **candidate,
-                        "status": "INSUFFICIENT_DATA",
-                        "odds": None,
-                        "reason": "No bookmaker odds are supplied by the fallback source; fair odds are model estimates only.",
-                    }
-                    for candidate in (forecast.get("candidates") or [])
-                ],
-                "forecast": forecast,
-                "match_analysis": {
-                    "recent_form": {"home": entry["home_form"], "away": entry["away_form"]},
-                    "venue_form": {"home": entry["home_venue_form"], "away": entry["away_venue_form"]},
-                    "head_to_head": {"available": False, "reason": "Not supplied by fallback dataset."},
-                    "injuries": {"available": False, "reason": "Not supplied by fallback dataset."},
-                    "lineups": {"available": False, "reason": "Not supplied by fallback dataset."},
-                },
-                "odds_available": False,
-                "reason": forecast.get("reason") or "Probability forecast only; no bookmaker prices available.",
-            })
-        return {
-            "success": True,
-            "status": "FALLBACK_SCAN_COMPLETED" if fallback_reports else "NO_UPCOMING_FIXTURES",
-            "data_source": fallback.get("source"),
-            "scan_window": {"from": start.isoformat(), "to": end.isoformat()},
-            "timezone": timezone_name,
-            "fixtures_found": fallback.get("fixtures_found_in_window", 0),
-            "fixtures_selected": len(fallback_reports),
-            "fixtures_analyzed": len(fallback_reports),
-            "ranked_opportunities": [],
-            "all_matches": fallback_reports,
-            "best_opportunity": None,
-            "model_validated": False,
-            "api_football_error": fixtures_result.get("error", "API-Football returned no fixtures."),
-            "data_limitations": fallback.get("data_limitations", []),
-            "warning": "Fallback produces experimental probabilities only. No odds, injuries, lineups, or live data; do not treat any selection as a bet recommendation.",
-        }
+        return _format_fallback_result(
+            fallback, start, end, timezone_name,
+            fixtures_result.get("error", "API-Football returned no fixtures."),
+        )
     remaining_quota = fixtures_result.get("rate_limit_remaining")
     if not fixtures_result.get("success"):
         return {
@@ -167,6 +175,16 @@ async def scan_best_bets(
             remaining_quota = remaining
         if isinstance(remaining, int) and remaining <= 2:
             break
+
+    if any(not entry.get("success") for entry in reports) and league_id is not None:
+        fallback = await fetch_open_matchday_scan(
+            league_id, start.isoformat(), end.isoformat(), max_fixtures
+        )
+        if fallback.get("success") and fallback.get("fixtures"):
+            return _format_fallback_result(
+                fallback, start, end, timezone_name,
+                "API-Football fixture discovery worked, but one or more match analyses failed.",
+            )
 
     ranked = sorted(
         (entry for entry in reports if entry.get("primary_pick")),
