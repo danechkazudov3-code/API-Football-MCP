@@ -3,6 +3,7 @@
 from tools import (
     analyzer,
     backtesting,
+    dashboard,
     coaches,
     fixtures,
     injuries,
@@ -25,6 +26,7 @@ from tools import (
 __all__ = [
     "analyzer",
     "backtesting",
+    "dashboard",
     "reference",
     "teams",
     "players",
