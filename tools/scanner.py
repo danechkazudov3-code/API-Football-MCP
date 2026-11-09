@@ -39,6 +39,19 @@ def _format_fallback_result(
         forecast = forecast_from_recent_form(
             entry["model_home_form"], entry["model_away_form"]
         )
+        forecast = dict(forecast)
+        no_odds_reason = "No bookmaker odds are supplied by the fallback source; fair odds are model estimates only."
+        if forecast.get("available"):
+            if forecast.get("primary_forecast"):
+                forecast["primary_forecast"] = {
+                    **forecast["primary_forecast"], "status": "INSUFFICIENT_DATA",
+                    "odds": None, "reason": no_odds_reason,
+                }
+            forecast["candidates"] = [
+                {**candidate, "status": "INSUFFICIENT_DATA", "odds": None,
+                 "reason": no_odds_reason}
+                for candidate in (forecast.get("candidates") or [])
+            ]
         fallback_reports.append({
             "fixture": entry["fixture"],
             "success": bool(forecast.get("available")),
@@ -47,7 +60,7 @@ def _format_fallback_result(
             "forecast_candidates": [
                 {
                     **candidate, "status": "INSUFFICIENT_DATA", "odds": None,
-                    "reason": "No bookmaker odds are supplied by the fallback source; fair odds are model estimates only.",
+                    "reason": no_odds_reason,
                 }
                 for candidate in (forecast.get("candidates") or [])
             ],
@@ -55,6 +68,11 @@ def _format_fallback_result(
             "match_analysis": {
                 "recent_form": {"home": entry["home_form"], "away": entry["away_form"]},
                 "venue_form": {"home": entry["home_venue_form"], "away": entry["away_venue_form"]},
+                "match_statistics": {
+                    "home": (entry.get("model_home_form") or {}).get("statistics"),
+                    "away": (entry.get("model_away_form") or {}).get("statistics"),
+                    "note": "Partial historical match statistics; no xG is supplied by Open-Matchday.",
+                },
                 "head_to_head": {"available": False, "reason": "Not supplied by fallback dataset."},
                 "injuries": {"available": False, "reason": "Not supplied by fallback dataset."},
                 "lineups": {"available": False, "reason": "Not supplied by fallback dataset."},
