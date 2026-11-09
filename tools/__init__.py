@@ -1,6 +1,7 @@
 """Register all API-Football tool modules."""
 
 from tools import (
+    analyzer,
     coaches,
     fixtures,
     injuries,
@@ -18,6 +19,7 @@ from tools import (
 )
 
 __all__ = [
+    "analyzer",
     "reference",
     "teams",
     "players",
