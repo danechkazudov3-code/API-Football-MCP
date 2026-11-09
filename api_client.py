@@ -74,7 +74,7 @@ async def api_request(endpoint: str, params: dict[str, Any] | None = None) -> di
     if response.status_code == 401:
         return _error_response("Invalid API key. Check your API_FOOTBALL_KEY in .env file.")
     if response.status_code == 429:
-        return _error_response("Rate limit exceeded. You've hit the daily request limit (150,000/day).")
+        return _error_response("Дневной лимит запросов API-Football исчерпан. Проверьте остаток квоты в личном кабинете.")
     if response.status_code >= 500:
         return _error_response(f"API-Football server error (HTTP {response.status_code}). Try again later.")
     if response.status_code >= 400:
