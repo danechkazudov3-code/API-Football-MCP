@@ -7,6 +7,7 @@ this at the repository/container filesystem and assume records will survive.
 from __future__ import annotations
 
 import json
+import math
 import os
 import sqlite3
 import uuid
@@ -39,6 +40,7 @@ def _connect() -> sqlite3.Connection | None:
     connection = sqlite3.connect(str(Path(path).expanduser()), timeout=15)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA busy_timeout = 15000")
+    connection.execute("PRAGMA foreign_keys = ON")
     connection.execute("PRAGMA journal_mode = WAL")
     _initialize(connection)
     return connection
@@ -135,7 +137,10 @@ def record_scan_reports(
             "enabled": False, "recorded": 0,
             "reason": "PREDICTION_JOURNAL_DB_PATH is not configured; no persistent journal writes occurred.",
         }
-    connection = _connect()
+    try:
+        connection = _connect()
+    except (OSError, sqlite3.Error) as exc:
+        return {"enabled": False, "recorded": 0, "reason": f"Journal storage unavailable: {exc}"}
     if connection is None:
         return {"enabled": False, "recorded": 0, "reason": "Journal database is not configured."}
     captured_at = _utc_now()
@@ -211,6 +216,8 @@ def record_scan_reports(
                         )
                 recorded += 1
         return {"enabled": True, "recorded": recorded, "captured_at": captured_at}
+    except (OSError, sqlite3.Error) as exc:
+        return {"enabled": False, "recorded": 0, "reason": f"Journal write failed: {exc}"}
     finally:
         connection.close()
 
@@ -291,8 +298,8 @@ async def add_prediction_odds(
     """Append a timestamped bookmaker price to an existing forecast candidate."""
     if not candidate_id.strip() or not bookmaker.strip() or not source.strip():
         return {"success": False, "error": "candidate_id, bookmaker and source are required."}
-    if not odds > 1.0:
-        return {"success": False, "error": "Decimal odds must be greater than 1.0."}
+    if not math.isfinite(odds) or odds <= 1.0:
+        return {"success": False, "error": "Decimal odds must be a finite number greater than 1.0."}
     timestamp = captured_at or _utc_now()
     try:
         datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
