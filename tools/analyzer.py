@@ -87,7 +87,7 @@ def _summarize_team_form(
     count = len(summary)
 
     return {
-        "available": True,
+        "available": count > 0,
         "team": team_name,
         "matches_played": count,
         "form": "".join(item["result"] for item in summary),
@@ -184,10 +184,12 @@ away.get("name", "Away team"),
             "home": home_form,
             "away": away_form,
         },
-        "raw_data": match,
         "rate_limit_remaining": away_form_result.get(
             "rate_limit_remaining"
         ),
     }
+
+
+
 
 
