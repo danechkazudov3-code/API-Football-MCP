@@ -59,7 +59,14 @@ async def scan_best_bets(
     if league_id is not None:
         params["league"] = league_id
     fixtures_result = await api_request("/fixtures", params)
-    if not fixtures_result.get("success") or not fixtures_result.get("data"):
+    if (
+        not fixtures_result.get("success")
+        or not fixtures_result.get("data")
+        or not any(
+            (item.get("fixture") or {}).get("status", {}).get("short") in {"NS", "TBD"}
+            for item in (fixtures_result.get("data") or [])
+        )
+    ):
         fallback = await fetch_open_matchday_scan(
             league_id, start.isoformat(), end.isoformat(), max_fixtures
         )
