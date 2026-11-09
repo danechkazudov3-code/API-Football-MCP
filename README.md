@@ -293,6 +293,10 @@ API-Football/
 MIT
 
 
+## Prediction Journal
+
+Pre-match scans can append immutable forecast snapshots, candidates, timestamped odds observations and settled outcomes. The journal is disabled by default until `PREDICTION_JOURNAL_DB_PATH` points to durable storage. See [`docs/PREDICTION_JOURNAL.md`](docs/PREDICTION_JOURNAL.md) before enabling it on Render; the current Free service filesystem is ephemeral.
+
 ## MyAnalytics Prediction Engine
 
 The prediction engine requirements and implementation roadmap are documented in [`docs/PREDICTION_ENGINE_SPEC.md`](docs/PREDICTION_ENGINE_SPEC.md). The first pure pricing/ranking utilities are in `tools/prediction.py`, with unit tests in `tests/test_prediction.py`. The experimental Poisson baseline now uses league goal baselines and home/away team scoring and conceding rates when available, with a shrunk recent-form fallback. A separate in-play model estimates goals remaining from match time, score, live shots and red cards. A chronological walk-forward backtest reports probability metrics without inventing ROI when historical odds are unavailable. The MCP tool `predict_match_bet(fixture_id)` selects a primary pre-match candidate, compares supported markets with the best prices returned across available bookmakers, and keeps all candidates visible. The model is not calibrated or backtested: positive point-estimate EV is capped at LEAN, and VALUE_BET remains disabled until validation. See `docs/RECOMMENDATION_TOOL.md` and `docs/BACKTESTING_AND_LIVE.md`.
