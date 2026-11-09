@@ -60,7 +60,7 @@ async def test_http_429(mock_api):
     )
     result = await api_request("/test")
     assert result["success"] is False
-    assert "Rate limit" in result["error"]
+    assert "лимит запросов API-Football исчерпан" in result["error"]
 
 
 @pytest.mark.asyncio
