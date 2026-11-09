@@ -4,7 +4,7 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that 
 
 ## Features
 
-- 47 MCP tools covering teams, players, fixtures, standings, transfers, odds, automatic pre-match picks, live picks, and historical backtesting
+- 48 MCP tools covering teams, players, fixtures, standings, transfers, odds, automatic pre-match picks, live picks, and historical backtesting
 - Streamable HTTP, SSE, and stdio transports
 - Async HTTP client with rate-limit tracking and error handling
 - Docker support for easy deployment
@@ -208,6 +208,7 @@ Use these first to find IDs by name, then pass IDs to other tools.
 |------|-------------|
 | `get_predictions` | API-Football's match prediction with win/draw probabilities, advice, and team comparison |
 | `predict_match_bet` | Experimental automatic pre-match pick, best returned bookmaker price, fair odds, EV, and visible candidate ranking |
+| `scan_best_bets` | Automatically scan upcoming fixtures and rank their primary betting opportunities with a quota-safe fixture cap |
 | `predict_live_match_bet` | Separate in-play model using current score, elapsed time, live shots, red cards, and live odds |
 | `backtest_league` | Chronological walk-forward probability evaluation on historical league fixtures (no ROI without historical odds) |
 
