@@ -7,6 +7,7 @@ from typing import Any
 
 from api_client import api_request, _error_response
 from server import mcp
+from tools.poisson_model import forecast_from_recent_form
 
 def _summarize_team_form(
     team_id: int,
@@ -155,6 +156,8 @@ away.get("name", "Away team"),
         away_form_result,
     )
 
+    forecast = forecast_from_recent_form(home_form, away_form)
+
     both_forms_available = (
         home_form.get("available") and away_form.get("available")
     )
@@ -184,6 +187,7 @@ away.get("name", "Away team"),
             "home": home_form,
             "away": away_form,
         },
+        "forecast": forecast,
         "rate_limit_remaining": away_form_result.get(
             "rate_limit_remaining"
         ),
