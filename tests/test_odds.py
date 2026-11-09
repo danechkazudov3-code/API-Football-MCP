@@ -95,9 +95,10 @@ async def test_get_odds_simplifies_response(mock_api):
     result = await get_odds(fixture=1001, bet=1)
     assert result["success"] is True
     odds = result["data"][0]["odds"]
-    assert len(odds) == 2
-    bet_names = {o["bet_name"] for o in odds}
-    assert bet_names == {"Match Winner", "Goals Over/Under"}
+    # The API request explicitly filters to bet=1, so only Match Winner is expected.
+    assert len(odds) == 1
+    assert odds[0]["bet_id"] == 1
+    assert odds[0]["bet_name"] == "Match Winner"
 
 
 @pytest.mark.asyncio
