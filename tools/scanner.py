@@ -66,9 +66,11 @@ async def scan_best_bets(
         if not fallback.get("success"):
             return {
                 "success": False, "stage": "fixture_discovery",
+                "error": fixtures_result.get("error", "No API-Football fixtures."),
                 "api_football_error": fixtures_result.get("error", "No API-Football fixtures."),
                 "fallback_error": fallback.get("error"),
                 "fallback_source": fallback.get("source", "open-matchday"),
+                "rate_limit_remaining": fixtures_result.get("rate_limit_remaining"),
             }
         fallback_reports = []
         for entry in fallback.get("fixtures") or []:
