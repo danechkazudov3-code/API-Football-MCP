@@ -20,11 +20,11 @@ The current Poisson baseline is experimental, uses only a small recent-form samp
 
 ## Limitations / next work
 
-- This is pre-match only. Live requires a separate in-play state model using score, elapsed time, red cards, live statistics and live market prices.
+- This is the pre-match workflow. The separate MCP tool `predict_live_match_bet(fixture_id)` uses current score, elapsed time, live shots, red cards and live market prices to estimate probabilities for the final result.
 - Supported price extraction currently covers 1X2, Over/Under 2.5 and BTTS only.
 - API-Football may return no odds for a fixture or plan/league combination. In that case candidates remain visible without fabricated prices.
 - Best price means the highest price among bookmakers returned by the API for that request, not a guarantee that the user can access or place that price.
-- The Poisson rates need league baselines, home advantage, opponent-strength adjustment, larger samples, and out-of-sample calibration/backtesting before any VALUE_BET status can be enabled.
+- The Poisson rates now use league goal baselines and home/away scoring and conceding splits when available. This is still an experimental approximation: opponent quality is represented through season attack/defence rates, home advantage is a starting factor rather than a calibrated league parameter, and out-of-sample calibration is still required.
 - The tool currently spends one additional API request for odds per match analysis, subject to the API's cache and daily quota.
 
 ## Example invocation
@@ -34,8 +34,8 @@ Call `predict_match_bet(fixture_id=123456)` from the MCP client. The tool return
 
 ## Coefficient preference
 
-The candidate ranker now prefers decimal odds from **1.65 to 2.50** when candidates have the same recommendation status. This is a soft preference, not a probability claim and not a hard filter:
-- Below 1.65: marked `LOW_ODDS`; still shown.
+The candidate ranker now prefers decimal odds from **1.50 to 2.50** when candidates have the same recommendation status. This is a soft preference, not a probability claim and not a hard filter:
+- Below 1.50: marked `LOW_ODDS`; still shown.
 - 1.50–2.50: marked `PREFERRED`.
 - Above 2.50: marked `HIGH_VARIANCE`; still shown and requires stronger scrutiny.
 
