@@ -106,7 +106,7 @@ async def fetch_open_matchday_scan(
     folder, league_name = mapping
     root = f"{BASE}/{folder}"
     try:
-        fixtures_rows, result_rows = await __import__("asyncio").gather(
+        fixtures_rows, result_rows = await asyncio.gather(
             _csv_rows(f"{root}/fixtures_{SEASON_CODE}.csv"),
             _csv_rows(f"{root}/results_{SEASON_CODE}.csv"),
         )
