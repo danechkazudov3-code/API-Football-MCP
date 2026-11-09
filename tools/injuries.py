@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from api_client import api_request
+from api_client import api_request, require_at_least_one, _error_response
 
 import sys
 sys.path.insert(0, ".")
@@ -36,6 +36,13 @@ async def get_injuries(
     Returns player injury details: player name/photo, team, fixture,
     injury type, and reason.
     """
+    values = {
+        "league": league, "season": season, "fixture": fixture, "team": team,
+        "player": player, "date": date, "ids": ids,
+    }
+    err = require_at_least_one(list(values), values)
+    if err:
+        return _error_response(err)
     return await api_request("/injuries", {
         "league": league, "season": season, "fixture": fixture,
         "team": team, "player": player, "date": date, "ids": ids,
