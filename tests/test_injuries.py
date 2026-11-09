@@ -25,3 +25,11 @@ async def test_get_injuries_by_league_season(mock_api):
     mock_api.return_value = mock_httpx_response(data=[], results=0)
     result = await get_injuries(league=39, season=2024)
     assert result["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_get_injuries_requires_at_least_one_filter(mock_api):
+    result = await get_injuries()
+    assert result["success"] is False
+    assert "At least one" in result["error"]
+    mock_api.assert_not_awaited()
