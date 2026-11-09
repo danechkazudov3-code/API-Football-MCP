@@ -140,3 +140,47 @@ async def test_scan_reports_latest_remaining_quota(monkeypatch):
     result = await scan_best_bets(scan_date="2026-11-10")
 
     assert result["rate_limit_remaining"] == 64
+
+
+@pytest.mark.asyncio
+async def test_scan_uses_open_matchday_when_api_fixtures_are_unavailable(monkeypatch):
+    import tools.scanner as scanner
+
+    async def fake_api(_endpoint, _params):
+        return {"success": False, "error": "Free plan season restriction", "data": []}
+
+    async def fake_fallback(league_id, start_date, end_date, max_fixtures):
+        assert league_id == 140
+        assert start_date == "2026-11-20"
+        assert end_date == "2026-11-20"
+        assert max_fixtures == 1
+        form = {
+            "available": True, "matches_played": 5,
+            "average_goals_scored": 1.6, "average_goals_conceded": 1.0,
+            "form": "WWDLW", "matches": [],
+        }
+        return {
+            "success": True, "source": "open-matchday",
+            "fixtures_found_in_window": 1,
+            "fixtures": [{
+                "fixture": {"id": "open-matchday:140:test", "teams": {"home_name": "A", "away_name": "B"}},
+                "home_form": form, "away_form": form,
+                "home_venue_form": form, "away_venue_form": form,
+                "model_home_form": form, "model_away_form": form,
+            }],
+            "data_limitations": ["No odds"],
+        }
+
+    monkeypatch.setattr(scanner, "api_request", fake_api)
+    monkeypatch.setattr(scanner, "fetch_open_matchday_scan", fake_fallback)
+    result = await scan_best_bets(
+        scan_date="2026-11-20", days_ahead=1, league_id=140, max_fixtures=1
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "FALLBACK_SCAN_COMPLETED"
+    assert result["data_source"] == "open-matchday"
+    assert result["fixtures_analyzed"] == 1
+    assert result["best_opportunity"] is None
+    assert result["all_matches"][0]["odds_available"] is False
+    assert result["all_matches"][0]["forecast"]["available"] is True
