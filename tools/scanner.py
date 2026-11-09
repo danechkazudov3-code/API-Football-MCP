@@ -61,7 +61,7 @@ async def scan_best_bets(
         return {
             "success": False, "stage": "fixture_discovery",
             "error": fixtures_result.get("error", "Could not retrieve fixtures."),
-            "rate_limit_remaining": fixtures_result.get("rate_limit_remaining"),
+            "rate_limit_remaining": remaining_quota,
         }
 
     upcoming = [
@@ -71,6 +71,7 @@ async def scan_best_bets(
     upcoming.sort(key=lambda item: (item.get("fixture") or {}).get("date") or "")
     selected = upcoming[:max_fixtures]
     reports: list[dict[str, Any]] = []
+    remaining_quota = fixtures_result.get("rate_limit_remaining")
 
     # Sequential calls avoid a burst against the user's limited daily API quota.
     for item in selected:
@@ -92,6 +93,8 @@ async def scan_best_bets(
             "odds_available": result.get("odds_available", False),
         })
         remaining = result.get("rate_limit_remaining")
+        if isinstance(remaining, int):
+            remaining_quota = remaining
         if isinstance(remaining, int) and remaining <= 2:
             break
 
@@ -108,6 +111,7 @@ async def scan_best_bets(
         "fixtures_selected": len(selected),
         "fixtures_analyzed": len(reports),
         "ranked_opportunities": ranked,
+        "all_matches": reports,
         "best_opportunity": ranked[0] if ranked else None,
         "model_validated": False,
         "warning": (
