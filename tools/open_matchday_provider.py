@@ -54,12 +54,40 @@ def _form(team: str, matches: list[dict[str, str]], venue: str | None = None) ->
             "date": row.get("date"), "opponent": row.get("away") if is_home else row.get("home"),
             "venue": "home" if is_home else "away", "score": f"{scored}-{conceded}",
             "result": result, "scored": scored, "conceded": conceded,
+            "stats": {
+                "shots": {"for": row.get("home_shots" if is_home else "away_shots"), "against": row.get("away_shots" if is_home else "home_shots")},
+                "shots_on_target": {"for": row.get("home_target" if is_home else "away_target"), "against": row.get("away_target" if is_home else "home_target")},
+                "fouls": {"for": row.get("home_fouls" if is_home else "away_fouls"), "against": row.get("away_fouls" if is_home else "home_fouls")},
+                "corners": {"for": row.get("home_corners" if is_home else "away_corners"), "against": row.get("away_corners" if is_home else "home_corners")},
+                "yellow_cards": {"for": row.get("home_yellow" if is_home else "away_yellow"), "against": row.get("away_yellow" if is_home else "home_yellow")},
+                "red_cards": {"for": row.get("home_red" if is_home else "away_red"), "against": row.get("away_red" if is_home else "home_red")},
+            },
         })
     selected.sort(key=lambda x: x.get("date") or "", reverse=True)
     selected = selected[:10]
     count = len(selected)
+    statistics = {}
+    for metric in ("shots", "shots_on_target", "fouls", "corners", "yellow_cards", "red_cards"):
+        pairs = []
+        for match in selected:
+            values = (match.get("stats") or {}).get(metric) or {}
+            try:
+                for_value = float(values.get("for"))
+                against_value = float(values.get("against"))
+            except (TypeError, ValueError):
+                continue
+            if for_value >= 0 and against_value >= 0:
+                pairs.append((for_value, against_value))
+        statistics[metric] = {
+            "available": bool(pairs),
+            "matches_sampled": len(pairs),
+            "average_for": round(sum(pair[0] for pair in pairs) / len(pairs), 2) if pairs else None,
+            "average_against": round(sum(pair[1] for pair in pairs) / len(pairs), 2) if pairs else None,
+        }
     return {
         "available": count > 0, "team": team, "matches_played": count,
+        "statistics": statistics,
+        "statistics_note": "Averages use only matches with both values present; missing values are not treated as zero.",
         "form": "".join(x["result"] for x in selected),
         "wins": sum(x["result"] == "W" for x in selected),
         "draws": sum(x["result"] == "D" for x in selected),
@@ -96,6 +124,8 @@ async def fetch_open_matchday_scan(
                 "Daily snapshot; not a live data feed.",
                 "No bookmaker odds, injuries, confirmed lineups, or live match data.",
                 "Recent-form summaries use only completed matches available in this CSV.",
+            "Shots, shots on target, fouls and cards are partial; missing values are not zero. No xG is supplied.",
+                "Shots, shots on target, fouls and cards are partial; missing values are not zero. No xG is supplied.",
                 "Source is provided for informational, non-commercial use; attribution required.",
             ],
             "errors": [part.get("error") for part in parts if not part.get("success")],
