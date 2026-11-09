@@ -40,3 +40,36 @@ def test_backtest_rejects_invalid_history_settings():
     import pytest
     with pytest.raises(ValueError):
         run_walk_forward_backtest([], min_history=6, history_window=5)
+
+
+
+def test_same_day_results_do_not_leak_into_other_same_day_forecasts(monkeypatch):
+    import tools.backtesting as backtesting
+
+    observed_home_averages = []
+
+    def fake_forecast(home_form, away_form, *, league_baseline, home_advantage):
+        observed_home_averages.append(home_form["average_goals_scored"])
+        return {
+            "available": True,
+            "market_probabilities": {
+                "home_win": 0.4, "draw": 0.3, "away_win": 0.3,
+                "over_2_5": 0.5, "under_2_5": 0.5,
+                "btts_yes": 0.5, "btts_no": 0.5,
+            },
+        }
+
+    monkeypatch.setattr(backtesting, "forecast_from_recent_form", fake_forecast)
+    fixtures = [
+        _match(1, 1, 1, 2, 4, 0),  # Establishes prior history for team 1.
+        _match(2, 2, 1, 3, 0, 3),
+        _match(3, 2, 1, 4, 2, 0),
+    ]
+
+    report = backtesting.run_walk_forward_backtest(
+        fixtures, min_history=1, history_window=5
+    )
+
+    assert report["fixtures_evaluated"] == 2
+    # Both forecasts on day 2 must see only the day-1 result (4 goals scored).
+    assert observed_home_averages == [4.0, 4.0]
