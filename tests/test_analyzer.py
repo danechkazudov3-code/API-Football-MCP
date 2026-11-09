@@ -6,7 +6,7 @@ from tests.conftest import mock_httpx_response
 sys.argv = ["test"]
 from server import register_tools
 register_tools()
-from tools.analyzer import analyze_match, _summarize_team_form
+from tools.analyzer import analyze_match, _summarize_team_form, _summarize_head_to_head
 
 
 def _fixture(fixture_id=9001):
@@ -60,6 +60,19 @@ def test_summarize_team_form_counts_results_and_orders_matches():
     assert (summary["wins"], summary["draws"], summary["losses"]) == (1, 1, 1)
     assert (summary["goals_scored"], summary["goals_conceded"]) == (3, 2)
     assert [match["date"] for match in summary["matches"]] == ["2026-11-01", "2026-11-02", "2026-11-03"]
+    assert summary["venue_splits"]["home"]["available"] is True
+    assert summary["venue_splits"]["away"]["matches_played"] == 0
+
+
+def test_head_to_head_counts_results_for_current_home_and_away_teams():
+    result = {"success": True, "data": [
+        _played_fixture(20, 10, "2026-10-01", 1, 2, home=True),
+        _played_fixture(10, 20, "2026-09-01", 0, 1, home=True),
+    ]}
+    summary = _summarize_head_to_head(result, home_team_id=10, away_team_id=20)
+    assert summary["current_home_team_wins"] == 1
+    assert summary["current_away_team_wins"] == 1
+    assert summary["draws"] == 0
 
 
 @pytest.mark.asyncio
