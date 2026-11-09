@@ -12,6 +12,7 @@ from starlette.responses import HTMLResponse, JSONResponse
 from api_client import api_request
 from server import mcp
 from tools.backtesting import run_walk_forward_backtest
+from tools.football_data_provider import fetch_football_data_fixtures
 
 
 _PAGE = """<!doctype html>
@@ -33,7 +34,7 @@ small{color:#8e9bad}.warning{color:#f2c879}
 </head>
 <body><main>
 <h1>MyAnalytics Football — тест модели</h1>
-<p>Запуск хронологического walk-forward бэктеста. Для каждого матча прогноз строится только по более ранним результатам. Запросы расходуют дневную квоту API-Football.</p>
+<p>Запуск хронологического walk-forward бэктеста на историческом CSV Football-Data.co.uk. Для каждого матча прогноз строится только по более ранним результатам. API-Football не расходуется.</p>
 <form id="run">
 <label class="wide">Код доступа<input id="token" type="password" autocomplete="current-password" required placeholder="Вставь код доступа"></label>
 <label>ID лиги<input id="league" type="number" min="1" value="140" required></label>
@@ -100,13 +101,12 @@ async def run_backtest_route(request: Request) -> JSONResponse:
     except Exception:
         return JSONResponse({"success": False, "error": "Не удалось прочитать параметры запроса."}, status_code=400)
 
-    result = await api_request("/fixtures", {
-        "league": league_id,
-        "season": season,
-        "from": start.isoformat(),
-        "to": end.isoformat(),
-        "status": "FT-AET-PEN",
-    })
+    result = await fetch_football_data_fixtures(
+        league_id=league_id,
+        season=season,
+        from_date=start.isoformat(),
+        to_date=end.isoformat(),
+    )
     if not result.get("success"):
         return JSONResponse(result, status_code=502)
 
@@ -114,5 +114,7 @@ async def run_backtest_route(request: Request) -> JSONResponse:
     report["league_id"] = league_id
     report["season"] = season
     report["date_range"] = {"from": start.isoformat(), "to": end.isoformat()}
-    report["rate_limit_remaining"] = result.get("rate_limit_remaining")
+    report["data_source"] = result.get("source")
+    report["source_url"] = result.get("url")
+    report["historical_odds_available"] = result.get("odds_available", 0)
     return JSONResponse(report, headers={"Cache-Control": "no-store"})
