@@ -7,6 +7,7 @@ from __future__ import annotations
 import math
 from typing import Any
 from tools.poisson_model import forecast_from_recent_form
+from tools.football_data_provider import fetch_football_data_fixtures
 
 
 FINISHED = {"FT", "AET", "PEN"}
@@ -89,6 +90,9 @@ def run_walk_forward_backtest(
                     "actual_result": actual_result,
                     "actual_over_2_5": hg + ag >= 3,
                     "actual_score": [hg, ag],
+                    "home_team": ((item.get("teams") or {}).get("home") or {}).get("name"),
+                    "away_team": ((item.get("teams") or {}).get("away") or {}).get("name"),
+                    "historical_odds": item.get("historical_odds"),
                 })
 
         # Add the current result only after generating its forecast.
@@ -135,7 +139,8 @@ def run_walk_forward_backtest(
         },
         "predictions": predictions,
         "profitability_evaluated": False,
-        "profitability_reason": "Historical bookmaker odds and price timestamps were not supplied. ROI and yield are deliberately not fabricated.",
+        "odds_coverage": sum(bool(p.get("historical_odds") and all(p["historical_odds"].get(k) for k in ("home", "draw", "away"))) for p in predictions),
+        "profitability_reason": "Historical closing odds may be present, but no timestamped opening/closing series is available; ROI and CLV are not calculated by this baseline.",
         "warning": "This is an initial experimental baseline. It does not establish profitability or VALUE_BET eligibility.",
     }
 
@@ -151,6 +156,7 @@ async def backtest_league(
     from_date: str,
     to_date: str,
     min_history: int = 5,
+    source: str = "football_data",
 ) -> dict[str, Any]:
     """Run a chronological probability backtest on finished fixtures in a date range.
 
@@ -167,15 +173,25 @@ async def backtest_league(
             return _error_response("Date range must be chronological and no longer than 180 days.")
     except ValueError:
         return _error_response("Dates must use YYYY-MM-DD format.")
-    result = await api_request("/fixtures", {
-        "league": league_id, "season": season,
-        "from": from_date, "to": to_date, "status": "FT-AET-PEN",
-    })
+    if source == "football_data":
+        result = await fetch_football_data_fixtures(
+            league_id=league_id, season=season, from_date=from_date, to_date=to_date
+        )
+    elif source == "api_football":
+        result = await api_request("/fixtures", {
+            "league": league_id, "season": season,
+            "from": from_date, "to": to_date, "status": "FT-AET-PEN",
+        })
+    else:
+        return _error_response("source must be football_data or api_football.")
     if not result.get("success"):
         return result
     report = run_walk_forward_backtest(result.get("data") or [], min_history=min_history)
+    report["data_source"] = result.get("source", "api-football")
+    report["source_url"] = result.get("url")
     report["league_id"] = league_id
     report["season"] = season
     report["date_range"] = {"from": from_date, "to": to_date}
     report["rate_limit_remaining"] = result.get("rate_limit_remaining")
+    report["historical_odds_available"] = result.get("odds_available", 0)
     return report
