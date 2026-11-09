@@ -134,7 +134,7 @@ async def fetch_football_data_fixtures(
         fixtures = parse_football_data_csv(
             content, league_id=league_id, from_date=from_date, to_date=to_date
         )
-        diagnostic_reader = csv.DictReader(io.StringIO(content.lstrip("\\ufeff")))
+        diagnostic_reader = csv.DictReader(io.StringIO(content.lstrip("\ufeff")))
         diagnostic_rows = list(diagnostic_reader)
         date_samples = list(dict.fromkeys((row.get("Date") or "").strip() for row in diagnostic_rows if (row.get("Date") or "").strip()))[:5]
         rows_with_parseable_dates = sum(_parse_match_date(row.get("Date") or "") is not None for row in diagnostic_rows)
