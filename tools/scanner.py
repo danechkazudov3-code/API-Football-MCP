@@ -65,6 +65,7 @@ async def scan_best_bets(
                 "success": False, "stage": "fixture_discovery",
                 "error": fixtures_result.get("error", "API-Football returned no fixtures; select league_id to use the current-season fallback."),
                 "fallback_available": True,
+                "rate_limit_remaining": fixtures_result.get("rate_limit_remaining"),
             }
         fallback = await fetch_open_matchday_scan(
             league_id, start.isoformat(), end.isoformat(), max_fixtures
