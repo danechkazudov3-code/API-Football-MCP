@@ -6,9 +6,10 @@ unavailable rather than fabricating them.
 """
 from __future__ import annotations
 
+import asyncio
 import csv
 import io
-from datetime import date, datetime
+from datetime import date
 from typing import Any
 
 import httpx
@@ -72,8 +73,33 @@ def _form(team: str, matches: list[dict[str, str]], venue: str | None = None) ->
 
 
 async def fetch_open_matchday_scan(
-    league_id: int, start_date: str, end_date: str, max_fixtures: int,
+    league_id: int | None, start_date: str, end_date: str, max_fixtures: int,
 ) -> dict[str, Any]:
+    if league_id is None:
+        parts = await asyncio.gather(*(
+            fetch_open_matchday_scan(item_id, start_date, end_date, max_fixtures)
+            for item_id in LEAGUES
+        ))
+        successful = [part for part in parts if part.get("success")]
+        fixtures = sorted(
+            [fixture for part in successful for fixture in part.get("fixtures", [])],
+            key=lambda item: item.get("fixture", {}).get("date") or "",
+        )[:max_fixtures]
+        return {
+            "success": bool(successful),
+            "source": SOURCE,
+            "fixtures_found_in_window": sum(part.get("fixtures_found_in_window", 0) for part in successful),
+            "fixtures": fixtures,
+            "historical_results_loaded": sum(part.get("historical_results_loaded", 0) for part in successful),
+            "leagues_checked": [part.get("league") for part in successful],
+            "data_limitations": [
+                "Daily snapshot; not a live data feed.",
+                "No bookmaker odds, injuries, confirmed lineups, or live match data.",
+                "Recent-form summaries use only completed matches available in this CSV.",
+                "Source is provided for informational, non-commercial use; attribution required.",
+            ],
+            "errors": [part.get("error") for part in parts if not part.get("success")],
+        }
     mapping = LEAGUES.get(league_id)
     if not mapping:
         return {"success": False, "error": f"Open-Matchday mapping unavailable for league_id={league_id}."}
