@@ -21,11 +21,11 @@ async def test_get_sidelined_by_player(mock_api):
 
 
 @pytest.mark.asyncio
-async def test_get_sidelined_by_coaches_uses_correct_api_parameter(mock_api):
+async def test_get_sidelined_by_coaches_uses_documented_api_parameter(mock_api):
     mock_api.return_value = mock_httpx_response(data=[])
     result = await get_sidelined(coaches="2-6")
     assert result["success"] is True
-    assert mock_api.await_args.kwargs["params"] == {"coaches": "2-6"}
+    assert mock_api.await_args.kwargs["params"] == {"coachs": "2-6"}
 
 
 @pytest.mark.asyncio
