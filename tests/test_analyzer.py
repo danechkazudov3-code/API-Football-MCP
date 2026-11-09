@@ -120,7 +120,9 @@ async def test_analyze_match_collects_fixture_and_both_forms(mock_api):
 async def test_analyze_match_reports_partial_form_when_one_request_fails(mock_api):
     mock_api.side_effect = [
         mock_httpx_response(data=[_fixture()]),
-        mock_httpx_response(data=[]),
+        mock_httpx_response(data=[
+            _played_fixture(10, 11, "2026-11-01", 2, 0),
+        ]),
         mock_httpx_response(errors={"team": "Temporary API error"}),
     ]
 
@@ -128,5 +130,6 @@ async def test_analyze_match_reports_partial_form_when_one_request_fails(mock_ap
 
     assert result["success"] is True
     assert result["analysis_status"] == "PARTIAL_DATA_COLLECTION"
-    assert result["recent_form"]["home"]["available"] is False
+    assert result["recent_form"]["home"]["available"] is True
+    assert result["recent_form"]["home"]["form"] == "W"
     assert result["recent_form"]["away"]["available"] is False
