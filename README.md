@@ -270,7 +270,11 @@ API-Football/
 │   ├── sidelined.py    # Injury/absence history
 │   ├── injuries.py     # Current injuries
 │   ├── predictions.py  # Match predictions
-│   └── odds.py         # Betting odds, bookmakers, bet types
+│   ├── odds.py         # Betting odds, bookmakers, bet types
+│   ├── poisson_model.py # Experimental league-adjusted Poisson model
+│   ├── live_model.py    # Separate remaining-time in-play model
+│   ├── live_recommendation.py # Live MCP recommendation workflow
+│   └── backtesting.py   # Chronological walk-forward backtest
 ├── tests/              # Test suite
 │   ├── conftest.py     # Shared fixtures and mock helpers
 │   ├── test_*.py       # Unit tests (mocked)
