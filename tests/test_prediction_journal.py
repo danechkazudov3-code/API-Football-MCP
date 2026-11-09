@@ -1,4 +1,4 @@
-import pytest
+import asyncio
 
 from tools.prediction_journal import (
     add_prediction_odds,
@@ -59,8 +59,11 @@ def test_journal_records_immutable_snapshot_candidates_and_odds(tmp_path, monkey
     assert result["enabled"] is True
     assert result["recorded"] == 1
 
-    status = pytest.run(asyncio=get_prediction_journal_status) if False else None
-    rows = __import__("asyncio").run(list_prediction_journal(limit=10))
+    status = asyncio.run(get_prediction_journal_status())
+    assert status["snapshots"] == 1
+    assert status["candidates"] == 2
+    assert status["odds_observations"] == 1
+    rows = asyncio.run(list_prediction_journal(limit=10))
     assert rows["success"] is True
     assert rows["count"] == 2
 
@@ -74,7 +77,7 @@ def test_journal_records_immutable_snapshot_candidates_and_odds(tmp_path, monkey
     unpriced = next(item for item in rows["items"] if item["selection"] == "Under 2.5")
     assert unpriced["initial_odds"] is None
 
-    observation = __import__("asyncio").run(add_prediction_odds(
+    observation = asyncio.run(add_prediction_odds(
         candidate_id=unpriced["candidate_id"],
         bookmaker="PARI",
         odds=1.91,
@@ -83,7 +86,7 @@ def test_journal_records_immutable_snapshot_candidates_and_odds(tmp_path, monkey
     ))
     assert observation["success"] is True
 
-    settled = __import__("asyncio").run(settle_prediction_candidate(
+    settled = asyncio.run(settle_prediction_candidate(
         candidate_id=unpriced["candidate_id"],
         outcome="won",
         actual_score="0-0",
@@ -91,7 +94,7 @@ def test_journal_records_immutable_snapshot_candidates_and_odds(tmp_path, monkey
     ))
     assert settled["success"] is True
 
-    refreshed = __import__("asyncio").run(list_prediction_journal(
+    refreshed = asyncio.run(list_prediction_journal(
         limit=10, status="INSUFFICIENT_DATA"
     ))
     item = next(x for x in refreshed["items"] if x["candidate_id"] == unpriced["candidate_id"])
@@ -102,7 +105,6 @@ def test_journal_records_immutable_snapshot_candidates_and_odds(tmp_path, monkey
 def test_journal_rejects_invalid_odds_and_outcomes(tmp_path, monkeypatch):
     monkeypatch.setenv("PREDICTION_JOURNAL_DB_PATH", str(tmp_path / "journal.sqlite3"))
     record_scan_reports([_sample_report()])
-    import asyncio
     rows = asyncio.run(list_prediction_journal(limit=10))
     candidate_id = rows["items"][0]["candidate_id"]
 
