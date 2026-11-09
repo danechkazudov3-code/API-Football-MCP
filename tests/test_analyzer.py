@@ -88,6 +88,8 @@ async def test_analyze_match_uses_league_and_venue_adjustments(mock_api):
         mock_httpx_response(data=[_fixture()]),
         mock_httpx_response(data=home_matches),
         mock_httpx_response(data=away_matches),
+        mock_httpx_response(data=[]),  # H2H
+        mock_httpx_response(data=[]),  # injuries
         mock_httpx_response(data=[_team_stats()]),
         mock_httpx_response(data=[_team_stats()]),
         mock_httpx_response(data=[_standings()]),
@@ -99,7 +101,9 @@ async def test_analyze_match_uses_league_and_venue_adjustments(mock_api):
     assert result["recent_form"]["home"]["form"] == "WD"
     assert result["recent_form"]["away"]["form"] == "LW"
     assert result["forecast"]["goal_rates"]["method"] == "league_normalized_venue_attack_defence"
-    assert mock_api.await_count == 6
+    assert result["head_to_head"]["available"] is False
+    assert result["injuries"]["available"] is True
+    assert mock_api.await_count == 8
 
 
 @pytest.mark.asyncio
@@ -108,6 +112,8 @@ async def test_analyze_match_falls_back_when_season_stats_are_unavailable(mock_a
         mock_httpx_response(data=[_fixture()]),
         mock_httpx_response(data=[_played_fixture(10, 11, "2026-11-01", 2, 0)]),
         mock_httpx_response(data=[_played_fixture(20, 21, "2026-11-02", 0, 1, home=False)]),
+        mock_httpx_response(data=[]),  # H2H
+        mock_httpx_response(data=[]),  # injuries
         mock_httpx_response(errors={"team": "stats unavailable"}),
         mock_httpx_response(errors={"team": "stats unavailable"}),
         mock_httpx_response(errors={"league": "standings unavailable"}),
