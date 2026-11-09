@@ -118,7 +118,7 @@ def select_primary_candidate(candidates: list[dict[str, Any]]) -> dict[str, Any]
         "INSUFFICIENT_DATA": 4,
     }
 
-    def key(candidate: dict[str, Any]) -> tuple[float, float]:
+    def key(candidate: dict[str, Any]) -> tuple[float, float, float]:
         status_rank = rank.get(candidate.get("status"), 5)
         ev = candidate.get("conservative_expected_value")
         if ev is None:
@@ -127,6 +127,10 @@ def select_primary_candidate(candidates: list[dict[str, Any]]) -> dict[str, Any]
             ev_score = float(ev)
         except (TypeError, ValueError):
             ev_score = float("-inf")
-        return status_rank, -ev_score
+        try:
+            probability_score = float(candidate.get("model_probability"))
+        except (TypeError, ValueError):
+            probability_score = float("-inf")
+        return status_rank, -ev_score, -probability_score
 
     return min(candidates, key=key)
