@@ -53,6 +53,12 @@ async def test_predict_match_bet_keeps_candidates_when_odds_unavailable(monkeypa
         return {
             "success": True,
             "fixture": {"id": 123},
+            "analysis_status": "DATA_COLLECTION_WITH_FORM",
+            "recent_form": {"home": {"form": "WWDLW"}, "away": {"form": "LDWLW"}},
+            "head_to_head": {"available": True, "matches_played": 3},
+            "injuries": {"available": True, "count": 1},
+            "season_statistics": {"home": {"available": False}},
+            "data_limitations": ["Test limitation"],
             "forecast": {
                 "available": True,
                 "model": "experimental_poisson_baseline",
@@ -76,6 +82,9 @@ async def test_predict_match_bet_keeps_candidates_when_odds_unavailable(monkeypa
     assert result["primary_pick"]["status"] == "INSUFFICIENT_DATA"
     assert result["odds_available"] is False
     assert result["model_validated"] is False
+    assert result["match_analysis"]["recent_form"]["home"]["form"] == "WWDLW"
+    assert result["match_analysis"]["head_to_head"]["matches_played"] == 3
+    assert result["match_analysis"]["injuries"]["count"] == 1
 
 
 @pytest.mark.asyncio
