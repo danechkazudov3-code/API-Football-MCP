@@ -74,6 +74,7 @@ def _summarize_team_form(team_id: int, team_name: str, result: dict[str, Any]) -
     def split_summary(rows: list[tuple[int, int, str]]) -> dict[str, Any]:
         count = len(rows)
         return {
+            "available": count > 0,
             "matches_played": count,
             "wins": sum(row[2] == "W" for row in rows),
             "draws": sum(row[2] == "D" for row in rows),
