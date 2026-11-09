@@ -89,6 +89,7 @@ async def scan_best_bets(
             "status": result.get("status", "INSUFFICIENT_DATA"),
             "primary_pick": result.get("primary_pick"),
             "candidates": result.get("candidates", []),
+            "match_analysis": result.get("match_analysis"),
             "reason": result.get("reason") or result.get("error"),
             "odds_available": result.get("odds_available", False),
         })
