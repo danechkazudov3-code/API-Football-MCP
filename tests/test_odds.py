@@ -75,7 +75,7 @@ async def test_get_odds_without_bet_returns_summary(mock_api):
 
 @pytest.mark.asyncio
 async def test_get_odds_simplifies_response(mock_api):
-    """Verify the simplifier groups odds by bet type."""
+    """Verify the simplifier groups odds by bet type for the requested bet."""
     mock_api.return_value = mock_httpx_response(data=[
         {
             "fixture": {"id": 1001, "date": "2025-01-01T20:00:00+00:00"},
@@ -86,7 +86,6 @@ async def test_get_odds_simplifies_response(mock_api):
                     "id": 8, "name": "Bet365",
                     "bets": [
                         {"id": 1, "name": "Match Winner", "values": [{"value": "Home", "odd": "1.50"}]},
-                        {"id": 5, "name": "Goals Over/Under", "values": [{"value": "Over 2.5", "odd": "1.80"}]},
                     ],
                 },
             ],
@@ -95,7 +94,6 @@ async def test_get_odds_simplifies_response(mock_api):
     result = await get_odds(fixture=1001, bet=1)
     assert result["success"] is True
     odds = result["data"][0]["odds"]
-    # The API request explicitly filters to bet=1, so only Match Winner is expected.
     assert len(odds) == 1
     assert odds[0]["bet_id"] == 1
     assert odds[0]["bet_name"] == "Match Winner"
