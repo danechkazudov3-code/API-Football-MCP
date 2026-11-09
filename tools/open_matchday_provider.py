@@ -124,7 +124,6 @@ async def fetch_open_matchday_scan(
                 "Daily snapshot; not a live data feed.",
                 "No bookmaker odds, injuries, confirmed lineups, or live match data.",
                 "Recent-form summaries use only completed matches available in this CSV.",
-            "Shots, shots on target, fouls and cards are partial; missing values are not zero. No xG is supplied.",
                 "Shots, shots on target, fouls and cards are partial; missing values are not zero. No xG is supplied.",
                 "Source is provided for informational, non-commercial use; attribution required.",
             ],
