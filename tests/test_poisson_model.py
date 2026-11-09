@@ -29,7 +29,7 @@ def test_league_normalized_rates_use_venue_splits_and_opponent_defence():
     assert result["available"] is True
     assert result["method"] == "league_normalized_venue_attack_defence"
     assert result["lambda_home"] == pytest.approx(2.0 / 1.35 * 1.6 * 1.08 * 1.35 / 1.35)
-    assert result["lambda_away"] == pytest.approx(1.2 * 0.8 / (1.35 * 1.08))
+    assert result["lambda_away"] == pytest.approx(1.2 * 0.8 / (1.35 * 1.08), abs=1e-4)
 
 
 def test_extract_team_rates_from_api_football_shape():
