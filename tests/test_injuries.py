@@ -33,3 +33,12 @@ async def test_get_injuries_requires_at_least_one_filter(mock_api):
     assert result["success"] is False
     assert "At least one" in result["error"]
     mock_api.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_get_injuries_requires_season_for_league_team_and_player(mock_api):
+    for kwargs in ({"league": 39}, {"team": 33}, {"player": 276}):
+        result = await get_injuries(**kwargs)
+        assert result["success"] is False
+        assert "season parameter is required" in result["error"]
+    mock_api.assert_not_awaited()
