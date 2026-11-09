@@ -60,45 +60,60 @@ def run_walk_forward_backtest(
     league_history: dict[str, list[tuple[int, int]]] = {}
     predictions: list[dict[str, Any]] = []
 
-    for item in ordered:
-        parts = _fixture_parts(item)
-        if parts is None:
-            continue
-        date_value, home_id, away_id, hg, ag = parts
-        league_id = str((item.get("league") or {}).get("id", "unknown"))
-        home_key, away_key = (league_id, home_id), (league_id, away_id)
-        home_hist = team_history.get(home_key, [])
-        away_hist = team_history.get(away_key, [])
-        league_hist = league_history.get(league_id, [])
+    # Group by calendar day. Football-Data CSVs contain dates but no kickoff
+    # times, so results from one matchday must not influence another forecast
+    # from the same day.
+    from itertools import groupby
 
-        if len(home_hist) >= min_history and len(away_hist) >= min_history and league_hist:
-            total_goals = sum(h + a for h, a in league_hist)
-            league_baseline = total_goals / (2 * len(league_hist))
-            forecast = forecast_from_recent_form(
-                _form(home_hist, "home", history_window),
-                _form(away_hist, "away", history_window),
-                league_baseline=league_baseline,
-                home_advantage=home_advantage,
-            )
-            if forecast.get("available"):
-                probabilities = forecast["market_probabilities"]
-                actual_result = "home_win" if hg > ag else "away_win" if hg < ag else "draw"
-                predictions.append({
-                    "fixture_id": (item.get("fixture") or {}).get("id"),
-                    "date": date_value, "league_id": league_id,
-                    "probabilities": probabilities,
-                    "actual_result": actual_result,
-                    "actual_over_2_5": hg + ag >= 3,
-                    "actual_score": [hg, ag],
-                    "home_team": ((item.get("teams") or {}).get("home") or {}).get("name"),
-                    "away_team": ((item.get("teams") or {}).get("away") or {}).get("name"),
-                    "historical_odds": item.get("historical_odds"),
-                })
+    for match_day, day_iter in groupby(
+        ordered,
+        key=lambda item: (_fixture_parts(item) or ("", 0, 0, 0, 0))[0][:10],
+    ):
+        day_items = list(day_iter)
+        day_results: list[tuple[str, int, int, int, int, dict[str, Any]]] = []
 
-        # Add the current result only after generating its forecast.
-        team_history.setdefault(home_key, []).append((hg, ag))
-        team_history.setdefault(away_key, []).append((ag, hg))
-        league_history.setdefault(league_id, []).append((hg, ag))
+        # Generate every forecast for this date using history strictly before it.
+        for item in day_items:
+            parts = _fixture_parts(item)
+            if parts is None:
+                continue
+            date_value, home_id, away_id, hg, ag = parts
+            league_id = str((item.get("league") or {}).get("id", "unknown"))
+            home_key, away_key = (league_id, home_id), (league_id, away_id)
+            home_hist = team_history.get(home_key, [])
+            away_hist = team_history.get(away_key, [])
+            league_hist = league_history.get(league_id, [])
+
+            if len(home_hist) >= min_history and len(away_hist) >= min_history and league_hist:
+                total_goals = sum(h + a for h, a in league_hist)
+                league_baseline = total_goals / (2 * len(league_hist))
+                forecast = forecast_from_recent_form(
+                    _form(home_hist, "home", history_window),
+                    _form(away_hist, "away", history_window),
+                    league_baseline=league_baseline,
+                    home_advantage=home_advantage,
+                )
+                if forecast.get("available"):
+                    probabilities = forecast["market_probabilities"]
+                    actual_result = "home_win" if hg > ag else "away_win" if hg < ag else "draw"
+                    predictions.append({
+                        "fixture_id": (item.get("fixture") or {}).get("id"),
+                        "date": date_value, "league_id": league_id,
+                        "probabilities": probabilities,
+                        "actual_result": actual_result,
+                        "actual_over_2_5": hg + ag >= 3,
+                        "actual_score": [hg, ag],
+                        "home_team": ((item.get("teams") or {}).get("home") or {}).get("name"),
+                        "away_team": ((item.get("teams") or {}).get("away") or {}).get("name"),
+                        "historical_odds": item.get("historical_odds"),
+                    })
+            day_results.append((league_id, home_id, away_id, hg, ag, item))
+
+        # Only after all forecasts for this date are complete, add that day's results.
+        for league_id, home_id, away_id, hg, ag, _item in day_results:
+            team_history.setdefault((league_id, home_id), []).append((hg, ag))
+            team_history.setdefault((league_id, away_id), []).append((ag, hg))
+            league_history.setdefault(league_id, []).append((hg, ag))
 
     if not predictions:
         return {
