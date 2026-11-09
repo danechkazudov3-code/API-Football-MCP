@@ -24,7 +24,7 @@ async def get_injuries(
 
     Args:
         league: League ID (use with season)
-        season: Season year (use with league)
+        season: Season year (use with league, team, or player)
         fixture: Fixture ID to get injuries for a specific match
         team: Team ID
         player: Player ID
@@ -43,6 +43,8 @@ async def get_injuries(
     err = require_at_least_one(list(values), values)
     if err:
         return _error_response(err)
+    if season is None and any(value is not None for value in (league, team, player)):
+        return _error_response("The season parameter is required with league, team, or player.")
     return await api_request("/injuries", {
         "league": league, "season": season, "fixture": fixture,
         "team": team, "player": player, "date": date, "ids": ids,
