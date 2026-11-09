@@ -189,3 +189,52 @@ async def test_scan_uses_open_matchday_when_api_fixtures_are_unavailable(monkeyp
     assert result["best_opportunity"] is None
     assert result["all_matches"][0]["odds_available"] is False
     assert result["all_matches"][0]["forecast"]["available"] is True
+
+
+@pytest.mark.asyncio
+async def test_scan_falls_back_when_api_fixture_analysis_fails(monkeypatch):
+    import tools.scanner as scanner
+
+    async def fake_api(_endpoint, _params):
+        return {
+            "success": True, "data": [
+                {"fixture": {"id": 555, "date": "2026-11-20T21:00:00+00:00",
+                             "status": {"short": "NS"}},
+                 "league": {"id": 140},
+                 "teams": {"home": {"name": "Athletic Club"}, "away": {"name": "Espanyol"}}}
+            ],
+        }
+
+    async def fake_predict(_fixture_id):
+        return {"success": False, "error": "Season access restricted"}
+
+    async def fake_fallback(league_id, start_date, end_date, max_fixtures):
+        assert league_id == 140
+        form = {
+            "available": True, "matches_played": 5,
+            "average_goals_scored": 1.4, "average_goals_conceded": 1.1,
+            "form": "WDLWW", "matches": [],
+        }
+        return {
+            "success": True, "source": "open-matchday",
+            "fixtures_found_in_window": 1,
+            "fixtures": [{
+                "fixture": {"id": "open-matchday:140:test"},
+                "home_form": form, "away_form": form,
+                "home_venue_form": form, "away_venue_form": form,
+                "model_home_form": form, "model_away_form": form,
+            }],
+            "data_limitations": ["No odds"],
+        }
+
+    monkeypatch.setattr(scanner, "api_request", fake_api)
+    monkeypatch.setattr(scanner, "predict_match_bet", fake_predict)
+    monkeypatch.setattr(scanner, "fetch_open_matchday_scan", fake_fallback)
+    result = await scan_best_bets(
+        scan_date="2026-11-20", days_ahead=1, league_id=140, max_fixtures=1
+    )
+
+    assert result["success"] is True
+    assert result["status"] == "FALLBACK_SCAN_COMPLETED"
+    assert result["all_matches"][0]["fixture"]["id"] == "open-matchday:140:test"
+    assert result["all_matches"][0]["odds_available"] is False
