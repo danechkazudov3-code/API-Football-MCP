@@ -8,6 +8,7 @@ from tools import (
     odds,
     players,
     predictions,
+    recommendation,
     reference,
     search,
     sidelined,
@@ -34,4 +35,5 @@ __all__ = [
     "predictions",
     "odds",
     "search",
+    "recommendation",
 ]
