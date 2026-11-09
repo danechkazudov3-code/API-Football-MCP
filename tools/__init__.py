@@ -2,6 +2,7 @@
 
 from tools import (
     analyzer,
+    backtesting,
     coaches,
     fixtures,
     injuries,
@@ -9,6 +10,7 @@ from tools import (
     players,
     predictions,
     recommendation,
+    live_recommendation,
     reference,
     search,
     sidelined,
@@ -21,6 +23,7 @@ from tools import (
 
 __all__ = [
     "analyzer",
+    "backtesting",
     "reference",
     "teams",
     "players",
@@ -36,4 +39,5 @@ __all__ = [
     "odds",
     "search",
     "recommendation",
+    "live_recommendation",
 ]
