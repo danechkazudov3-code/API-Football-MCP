@@ -36,7 +36,7 @@ Call `predict_match_bet(fixture_id=123456)` from the MCP client. The tool return
 
 The candidate ranker now prefers decimal odds from **1.65 to 2.50** when candidates have the same recommendation status. This is a soft preference, not a probability claim and not a hard filter:
 - Below 1.65: marked `LOW_ODDS`; still shown.
-- 1.65–2.50: marked `PREFERRED`.
+- 1.50–2.50: marked `PREFERRED`.
 - Above 2.50: marked `HIGH_VARIANCE`; still shown and requires stronger scrutiny.
 
 The status / EV assessment remains separate from the odds profile. A high coefficient alone never creates value. The primary recommendation first respects evidence status, then the preferred odds profile, then conservative EV and model probability. These default bands are configurable product policy to revisit after backtesting; they do not guarantee profitability.
