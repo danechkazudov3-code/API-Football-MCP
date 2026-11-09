@@ -1,5 +1,6 @@
 """MCP workflow for live match state, live statistics and in-play odds."""
 from __future__ import annotations
+import asyncio
 from typing import Any
 from api_client import api_request
 from server import mcp
@@ -9,7 +10,7 @@ from tools.prediction import evaluate_candidate, select_primary_candidate
 from tools.recommendation import extract_best_prices
 
 
-LIVE_STATUSES = {"1H", "HT", "2H", "ET", "BT", "P", "LIVE", "INT"}
+LIVE_STATUSES = {"1H", "HT", "2H", "ET", "BT", "LIVE"}
 
 
 def _number(value: Any) -> float:
@@ -91,7 +92,7 @@ async def predict_live_match_bet(fixture_id: int) -> dict[str, Any]:
             "reason": "Live minute, score or pre-match goal-rate baseline is unavailable.",
         }
 
-    stats_response, events_response, odds_response = await __import__("asyncio").gather(
+    stats_response, events_response, odds_response = await asyncio.gather(
         api_request("/fixtures/statistics", {"fixture": fixture_id}),
         api_request("/fixtures/events", {"fixture": fixture_id}),
         api_request("/odds/live", {"fixture": fixture_id}),
@@ -103,6 +104,7 @@ async def predict_live_match_bet(fixture_id: int) -> dict[str, Any]:
         shots_home=live_stats["shots_home"], shots_away=live_stats["shots_away"],
         shots_on_target_home=live_stats["sot_home"], shots_on_target_away=live_stats["sot_away"],
         red_cards_home=red_home, red_cards_away=red_away,
+        regulation_end_minute=125 if status_short in {"ET", "BT"} else 95,
     )
     probabilities = derive_live_probabilities(
         remaining["lambda_home_remaining"], remaining["lambda_away_remaining"],
