@@ -89,3 +89,52 @@ async def test_scan_stops_when_remaining_quota_is_critical(monkeypatch):
     result = await scan_best_bets(scan_date="2026-11-10")
     assert len(calls) == 1
     assert result["fixtures_analyzed"] == 1
+
+
+
+@pytest.mark.asyncio
+async def test_scan_returns_api_error_and_quota_without_unbound_variable(monkeypatch):
+    import tools.scanner as scanner
+
+    async def fake_api(_endpoint, _params):
+        return {
+            "success": False,
+            "error": "API key rejected",
+            "rate_limit_remaining": 77,
+            "data": [],
+        }
+
+    monkeypatch.setattr(scanner, "api_request", fake_api)
+    result = await scan_best_bets(scan_date="2026-11-10")
+
+    assert result["success"] is False
+    assert result["stage"] == "fixture_discovery"
+    assert result["error"] == "API key rejected"
+    assert result["rate_limit_remaining"] == 77
+
+
+@pytest.mark.asyncio
+async def test_scan_reports_latest_remaining_quota(monkeypatch):
+    import tools.scanner as scanner
+
+    async def fake_api(_endpoint, _params):
+        return {
+            "success": True, "rate_limit_remaining": 90,
+            "data": [
+                {"fixture": {"id": 21, "date": "2026-11-10T12:00:00+00:00",
+                             "status": {"short": "NS"}}},
+            ],
+        }
+
+    async def fake_predict(_fixture_id):
+        return {
+            "success": True, "rate_limit_remaining": 64,
+            "primary_pick": {"status": "NO_BET", "odds_profile": "PREFERRED"},
+            "candidates": [],
+        }
+
+    monkeypatch.setattr(scanner, "api_request", fake_api)
+    monkeypatch.setattr(scanner, "predict_match_bet", fake_predict)
+    result = await scan_best_bets(scan_date="2026-11-10")
+
+    assert result["rate_limit_remaining"] == 64
