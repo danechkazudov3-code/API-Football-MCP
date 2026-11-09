@@ -189,6 +189,10 @@ async def test_scan_uses_open_matchday_when_api_fixtures_are_unavailable(monkeyp
     assert result["best_opportunity"] is None
     assert result["all_matches"][0]["odds_available"] is False
     assert result["all_matches"][0]["forecast"]["available"] is True
+    forecast = result["all_matches"][0]["forecast"]
+    assert forecast["primary_forecast"]["status"] == "INSUFFICIENT_DATA"
+    assert all(item["status"] == "INSUFFICIENT_DATA" for item in forecast["candidates"])
+    assert all(item["status"] == "INSUFFICIENT_DATA" for item in result["all_matches"][0]["forecast_candidates"])
 
 
 @pytest.mark.asyncio
