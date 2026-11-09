@@ -61,7 +61,8 @@ def test_same_day_results_do_not_leak_into_other_same_day_forecasts(monkeypatch)
 
     monkeypatch.setattr(backtesting, "forecast_from_recent_form", fake_forecast)
     fixtures = [
-        _match(1, 1, 1, 2, 4, 0),  # Establishes prior history for team 1.
+        _match(1, 1, 1, 2, 4, 0),  # Prior history for team 1.
+        _match(4, 1, 3, 4, 1, 0),  # Prior history for teams 3 and 4.
         _match(2, 2, 1, 3, 0, 3),
         _match(3, 2, 1, 4, 2, 0),
     ]
