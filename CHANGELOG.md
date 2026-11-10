@@ -43,3 +43,14 @@ For exact code changes, commits, and test runs, consult Git history and GitHub A
 - GitHub Actions run 42745573085 passed all 164 unit tests (1.25 seconds) and Python syntax compilation.
 - Opened draft PR #2 targeting feature/prediction-engine. It is not merged; Render was not deployed.
 - Model validation remains false and VALUE_BET remains disabled.
+
+
+## 2026-11-10 — Pre-match model v3 (draft PR #2)
+- Added exponentially time-decayed recent form (four-match half-life) and home/away venue-specific sample selection.
+- Added opponent attack/defence adjustment for current upcoming fixtures using season standings, with bounded multipliers and neutral fallback for unknown opponents.
+- Blended adjusted recent form with season venue rates; added shrunk recent-form fallback.
+- Updated historical walk-forward backtest to derive opponent strengths strictly from prior fixtures, use venue-specific history where supported, and prevent same-day result leakage.
+- Retained independent Poisson score matrix and supported 1X2, O/U 2.5 and BTTS probabilities.
+- GitHub Actions run 42746256033: 166 unit tests passed and Python compileall passed.
+- PR #2 remains draft/open and unmerged; Render not deployed.
+- Model remains unvalidated; VALUE_BET remains disabled.
