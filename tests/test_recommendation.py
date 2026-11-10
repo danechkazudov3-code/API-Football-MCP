@@ -175,6 +175,7 @@ async def test_predict_match_bet_keeps_unvalidated_ev_as_lean_and_edge_is_explic
     assert pick["odds_observed_at"] == "2026-11-10T12:00:00+00:00"
     assert pick["status"] == "LEAN"
     assert pick["status"] != "VALUE_BET"
+    assert result["most_likely_outcome"]["selection"] == "Home win"
 
 
 def test_pari_allowlist_excludes_other_bookmakers():
