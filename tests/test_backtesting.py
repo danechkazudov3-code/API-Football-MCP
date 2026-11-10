@@ -116,3 +116,38 @@ def test_backtest_compares_model_with_same_match_no_vig_market():
     assert comparison["odds_timing_counts"] == {"closing": 1}
     assert report["odds_coverage_rate"] == 1.0
     assert comparison["market_no_vig_log_loss"] > 0
+
+
+def test_backtest_venue_split_is_selected_from_last_n_matches_only(monkeypatch):
+    import tools.backtesting as backtesting
+
+    captured = []
+
+    def fake_forecast(home_form, away_form, **kwargs):
+        captured.append([row["date"][:10] for row in home_form.get("matches", [])])
+        return {
+            "available": True,
+            "market_probabilities": {
+                "home_win": 0.4, "draw": 0.3, "away_win": 0.3,
+                "over_2_5": 0.5, "under_2_5": 0.5,
+                "btts_yes": 0.5, "btts_no": 0.5,
+            },
+        }
+
+    monkeypatch.setattr(backtesting, "forecast_from_recent_form", fake_forecast)
+    fixtures = [
+        _match(1, 1, 1, 2, 1, 0),
+        _match(2, 2, 3, 1, 0, 1),
+        _match(3, 3, 1, 4, 2, 0),
+        _match(4, 4, 5, 1, 1, 0),
+        _match(5, 5, 1, 6, 1, 1),
+        _match(6, 1, 7, 8, 1, 0),
+        _match(7, 2, 9, 7, 0, 1),
+        _match(8, 3, 7, 10, 2, 1),
+        _match(9, 6, 1, 7, 1, 0),
+    ]
+    report = backtesting.run_walk_forward_backtest(
+        fixtures, min_history=3, history_window=3
+    )
+    assert report["fixtures_evaluated"] == 1
+    assert captured == [["2025-01-03", "2025-01-04", "2025-01-05"]]
