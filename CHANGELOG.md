@@ -33,3 +33,13 @@ For exact code changes, commits, and test runs, consult Git history and GitHub A
 - Confirmed Render service is not suspended and remains on Free plan with auto-deploy from feature/prediction-engine.
 - Latest listed deployment is live: dep-dbp38cjnv7mc73bbnue0, commit 6dbbf87a06603610a9829414666304e925c42197.
 - Documentation branch remains separate from the Render deployment branch; no production code or Render settings were changed.
+
+## 2026-11-10 — Bookmaker-consistent no-vig pricing (draft PR #2)
+- Created branch feature/no-vig-pricing from feature/prediction-engine.
+- Added same-bookmaker normalization for complete 1X2, Over/Under 2.5 and BTTS markets; incomplete markets retain prices but do not receive synthetic no-vig probabilities.
+- Added Edge = model probability − no-vig market probability.
+- Preserved API response retrieval timestamp separately from the provider odds update timestamp, including cached-response semantics.
+- Added unit tests for bookmaker consistency, incomplete markets, Edge and timestamps.
+- GitHub Actions run 42745573085 passed unit tests and Python syntax compilation.
+- Opened draft PR #2 targeting feature/prediction-engine. It is not merged; Render was not deployed.
+- Model validation remains false and VALUE_BET remains disabled.
