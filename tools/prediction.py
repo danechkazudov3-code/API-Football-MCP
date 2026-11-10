@@ -13,6 +13,7 @@ def evaluate_candidate(
     model_validated: bool = False,
     min_expected_value: float = 0.03,
     min_probability: float = 0.0,
+    min_edge: float = 0.0,
 ) -> dict[str, Any]:
     """Calculate pricing metrics and assign a visible recommendation status."""
     result = dict(candidate)
@@ -66,9 +67,15 @@ def evaluate_candidate(
     if result["expected_value"] < 0:
         status = "NO_BET"
         reasons = ["Current odds are below the model break-even price."]
+    elif result["edge"] is None:
+        status = "INSUFFICIENT_DATA"
+        reasons = ["A complete same-bookmaker market is required to calculate no-vig edge."]
+    elif result["edge"] <= min_edge:
+        status = "NO_BET"
+        reasons = ["Model edge does not exceed the configured minimum."]
     elif not model_validated:
         status = "LEAN"
-        reasons = ["Positive point-estimate EV, but the model is not validated."]
+        reasons = ["Positive EV and edge, but the model is not validated."]
     else:
         lower_bound = result.get("probability_lower_bound")
         try:
@@ -80,13 +87,18 @@ def evaluate_candidate(
             reasons = ["Uncertainty bound is unavailable; VALUE_BET is not permitted."]
         else:
             conservative_ev = lower_bound * odds - 1.0
+            conservative_edge = lower_bound - no_vig_probability
             result["conservative_expected_value"] = round(conservative_ev, 6)
+            result["conservative_edge"] = round(conservative_edge, 6)
             if lower_bound < min_probability:
                 status = "LEAN"
                 reasons = ["Conservative probability is below the configured minimum."]
+            elif conservative_edge <= min_edge:
+                status = "WATCHLIST"
+                reasons = ["Conservative edge does not exceed the configured minimum."]
             elif conservative_ev >= min_expected_value:
                 status = "VALUE_BET"
-                reasons = ["Validated conservative EV clears the configured threshold."]
+                reasons = ["Validated conservative EV and edge clear configured thresholds."]
             else:
                 status = "WATCHLIST"
                 reasons = ["Point estimate is positive, but conservative EV misses the threshold."]
@@ -102,11 +114,8 @@ def select_primary_candidate(candidates: list[dict[str, Any]]) -> dict[str, Any]
         return None
     rank = {"VALUE_BET": 0, "LEAN": 1, "WATCHLIST": 2, "NO_BET": 3, "INSUFFICIENT_DATA": 4}
 
-    def key(candidate: dict[str, Any]) -> tuple[float, float, float, float]:
+    def key(candidate: dict[str, Any]) -> tuple[float, float, float]:
         status_rank = rank.get(candidate.get("status"), 5)
-        odds_rank = {"PREFERRED": 0, "LOW_ODDS": 1, "HIGH_VARIANCE": 2, None: 3}.get(
-            candidate.get("odds_profile"), 3
-        )
         ev = candidate.get("conservative_expected_value", candidate.get("expected_value"))
         try:
             ev_score = float(ev)
@@ -116,6 +125,6 @@ def select_primary_candidate(candidates: list[dict[str, Any]]) -> dict[str, Any]
             probability_score = float(candidate.get("model_probability"))
         except (TypeError, ValueError):
             probability_score = float("-inf")
-        return status_rank, odds_rank, -ev_score, -probability_score
+        return status_rank, -ev_score, -probability_score
 
     return min(candidates, key=key)
