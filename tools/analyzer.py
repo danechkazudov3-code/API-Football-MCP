@@ -10,6 +10,8 @@ from server import mcp
 from tools.poisson_model import (
     extract_team_rates,
     extract_league_goal_baseline,
+    extract_standings_team_strengths,
+    adjust_recent_form_for_opponents,
     forecast_from_recent_form,
 )
 
@@ -30,9 +32,7 @@ def _summarize_team_form(team_id: int, team_name: str, result: dict[str, Any]) -
     finished.sort(key=lambda item: item.get("fixture", {}).get("date") or "")
 
     summary: list[dict[str, Any]] = []
-    splits: dict[str, list[tuple[int, int, str]]] = {
-        "home": [], "away": [],
-    }
+    splits: dict[str, list[dict[str, Any]]] = {"home": [], "away": []}
     wins = draws = losses = goals_for = goals_against = 0
 
     for item in finished:
@@ -44,9 +44,9 @@ def _summarize_team_form(team_id: int, team_name: str, result: dict[str, Any]) -
             continue
 
         if home.get("id") == team_id:
-            scored, conceded, opponent, venue = hg, ag, away.get("name"), "home"
+            scored, conceded, opponent, opponent_id, venue = hg, ag, away.get("name"), away.get("id"), "home"
         elif away.get("id") == team_id:
-            scored, conceded, opponent, venue = ag, hg, home.get("name"), "away"
+            scored, conceded, opponent, opponent_id, venue = ag, hg, home.get("name"), home.get("id"), "away"
         else:
             continue
 
@@ -62,26 +62,27 @@ def _summarize_team_form(team_id: int, team_name: str, result: dict[str, Any]) -
 
         goals_for += scored
         goals_against += conceded
-        splits[venue].append((scored, conceded, outcome))
-        summary.append({
+        match_row = {
             "date": item.get("fixture", {}).get("date"),
-            "opponent": opponent,
-            "venue": venue,
-            "score": f"{scored}-{conceded}",
-            "result": outcome,
-        })
+            "opponent": opponent, "opponent_id": opponent_id,
+            "venue": venue, "score": f"{scored}-{conceded}",
+            "result": outcome, "scored": scored, "conceded": conceded,
+        }
+        splits[venue].append(match_row)
+        summary.append(match_row)
 
-    def split_summary(rows: list[tuple[int, int, str]]) -> dict[str, Any]:
+    def split_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         count = len(rows)
         return {
             "available": count > 0,
             "matches_played": count,
-            "wins": sum(row[2] == "W" for row in rows),
-            "draws": sum(row[2] == "D" for row in rows),
-            "losses": sum(row[2] == "L" for row in rows),
-            "average_goals_scored": round(sum(row[0] for row in rows) / count, 2) if count else None,
-            "average_goals_conceded": round(sum(row[1] for row in rows) / count, 2) if count else None,
-            "form": "".join(row[2] for row in rows),
+            "wins": sum(row["result"] == "W" for row in rows),
+            "draws": sum(row["result"] == "D" for row in rows),
+            "losses": sum(row["result"] == "L" for row in rows),
+            "average_goals_scored": round(sum(row["scored"] for row in rows) / count, 2) if count else None,
+            "average_goals_conceded": round(sum(row["conceded"] for row in rows) / count, 2) if count else None,
+            "form": "".join(row["result"] for row in rows),
+            "matches": rows,
         }
 
     count = len(summary)
@@ -221,9 +222,11 @@ async def analyze_match(fixture_id: int) -> dict[str, Any]:
         home_team_rates = extract_team_rates(collected[offset])
         away_team_rates = extract_team_rates(collected[offset + 1])
         league_rates = extract_league_goal_baseline(collected[offset + 2])
+        standings_strengths = extract_standings_team_strengths(collected[offset + 2])
     else:
         home_team_rates = away_team_rates = {"available": False}
         league_rates = {"available": False}
+        standings_strengths = {"available": False, "teams": {}}
 
     league_baseline = league_rates.get("goals_per_team_match") if league_rates.get("available") else None
 
@@ -233,6 +236,9 @@ async def analyze_match(fixture_id: int) -> dict[str, Any]:
     away_venue = (away_form.get("venue_splits") or {}).get("away") or {}
     model_home_form = home_venue if home_venue.get("matches_played", 0) >= 3 else home_form
     model_away_form = away_venue if away_venue.get("matches_played", 0) >= 3 else away_form
+    opponent_strength_map = standings_strengths.get("teams") or {}
+    model_home_form = adjust_recent_form_for_opponents(model_home_form, opponent_strength_map)
+    model_away_form = adjust_recent_form_for_opponents(model_away_form, opponent_strength_map)
 
     forecast = forecast_from_recent_form(
         model_home_form,
@@ -272,7 +278,10 @@ async def analyze_match(fixture_id: int) -> dict[str, Any]:
             "away": away_form,
             "model_inputs": {
                 "home": "recent_home_matches" if model_home_form is home_venue else "all_recent_matches",
-                "away": "recent_away_matches" if model_away_form is away_venue else "all_recent_matches",
+                "away": "recent_away_matches" if model_away_form.get("matches_played", 0) >= 3 and away_venue.get("matches_played", 0) >= 3 else "all_recent_matches",
+                "opponent_adjustment": standings_strengths.get("available", False),
+                "home_opponent_adjusted_matches": model_home_form.get("opponent_adjusted_matches", 0),
+                "away_opponent_adjusted_matches": model_away_form.get("opponent_adjusted_matches", 0),
             },
         },
         "head_to_head": h2h,
@@ -284,7 +293,9 @@ async def analyze_match(fixture_id: int) -> dict[str, Any]:
         },
         "forecast": forecast,
         "data_limitations": [
-            "H2H and injury information are displayed as context; they are not yet numerical adjustments to the Poisson rates.",
+            "H2H and injury information remain contextual; they are not numerical goal-rate adjustments.",
+            "Opponent adjustment uses current league standings as a proxy, not a full historical strength model; unknown opponents receive neutral adjustment.",
+            "The current standings snapshot is not suitable for historical walk-forward validation because it may contain future information relative to past fixtures.",
             "Lineups are not confirmed until the provider publishes them.",
             "Season statistics may be unavailable on the current API plan; recent-form fallback is used instead.",
         ],
