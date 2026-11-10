@@ -115,7 +115,7 @@ async def test_analyze_match_uses_league_and_venue_adjustments(mock_api):
     assert result["fixture"]["id"] == 9001
     assert result["recent_form"]["home"]["form"] == "WD"
     assert result["recent_form"]["away"]["form"] == "LW"
-    assert result["forecast"]["goal_rates"]["method"] == "league_normalized_venue_attack_defence"
+    assert result["forecast"]["goal_rates"]["method"] == "venue_season_rates_blended_with_opponent_adjusted_recent_form"
     assert result["head_to_head"]["available"] is False
     assert result["injuries"]["available"] is True
     assert mock_api.await_count == 8
@@ -136,4 +136,4 @@ async def test_analyze_match_falls_back_when_season_stats_are_unavailable(mock_a
     result = await analyze_match(9001)
     assert result["success"] is True
     assert result["analysis_status"] == "DATA_COLLECTION_WITH_FORM"
-    assert result["forecast"]["goal_rates"]["method"] == "shrunk_recent_form_with_home_advantage"
+    assert result["forecast"]["goal_rates"]["method"] == "opponent_adjusted_time_weighted_recent_form_fallback"
