@@ -197,3 +197,27 @@ The following points were confirmed by reading the current files on feature/pred
 - Latest deployment returned by Render was status live: deploy ID dep-dbp38cjnv7mc73bbnue0, commit 6dbbf87a06603610a9829414666304e925c42197, commit message 'Harden journal storage failures and odds validation'.
 - Render service branch remains feature/prediction-engine. Documentation branch docs/project-state is not configured for auto-deploy.
 - This confirms Render reports the latest listed deployment as live; it does not by itself prove every MCP tool works end-to-end.
+
+## 9. Market-pricing improvement in review — 2026-11-10
+
+A separate code branch, feature/no-vig-pricing, contains a draft PR targeting
+feature/prediction-engine: [PR #2](https://github.com/danechkazudov3-code/API-Football-MCP/pull/2).
+
+Changes on the PR branch:
+- No-vig probabilities are normalized only across a complete set of outcomes from the same bookmaker.
+- The best available selection price remains visible even if its bookmaker market is incomplete; no-vig probability, overround and Edge are then null.
+- Edge is defined as model probability minus same-bookmaker no-vig market probability.
+- EV remains model probability × selected decimal odds − 1 for the currently supported 1X2, Over/Under 2.5 and BTTS markets, which have no push settlement.
+- API response retrieval time is retained separately from the provider's fixture update timestamp. Cached responses retain the original upstream retrieval time.
+- Candidate quote fields include bookmaker, odds source, provider_updated_at and odds_observed_at.
+
+Validation actually completed on 2026-11-10:
+- GitHub Actions run 42745573085: unit tests passed.
+- Python compileall syntax check passed.
+- No live API request or Render deployment was performed.
+- PR #2 is draft/open and not merged. Render remains configured to deploy feature/prediction-engine, so these changes are not in the live service.
+- Model remains unvalidated; VALUE_BET remains disabled.
+
+Not yet implemented:
+- Settlement-aware calculations for push/half-win/half-loss markets such as Asian lines.
+- Historical odds capture/CLV validation and model calibration.
