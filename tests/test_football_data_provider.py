@@ -50,3 +50,32 @@ def test_parse_football_data_csv_accepts_four_digit_and_iso_dates():
         sample, league_id=140, from_date="2026-08-01", to_date="2026-08-31"
     )
     assert len(fixtures) == 2
+
+
+def test_closing_avg_odds_are_preferred_and_source_columns_are_recorded():
+    sample = """Date,HomeTeam,AwayTeam,FTHG,FTAG,AvgCH,AvgCD,AvgCA,B365CH,B365CD,B365CA,AvgH,AvgD,AvgA
+01/08/2026,Ath Madrid,Barcelona,1,2,2.20,3.30,3.10,2.25,3.35,3.15,2.10,3.40,3.20
+"""
+    fixture = parse_football_data_csv(
+        sample, league_id=140, from_date="2026-08-01", to_date="2026-08-31"
+    )[0]
+    odds = fixture["historical_odds"]
+    assert odds["source"] == "Football-Data.co.uk avg_closing odds"
+    assert odds["odds_timing"] == "closing"
+    assert odds["source_columns"] == {
+        "home": "AvgCH", "draw": "AvgCD", "away": "AvgCA"
+    }
+    assert (odds["home"], odds["draw"], odds["away"]) == (2.20, 3.30, 3.10)
+
+
+def test_odds_fall_back_to_next_complete_market_without_mixing_columns():
+    sample = """Date,HomeTeam,AwayTeam,FTHG,FTAG,AvgCH,AvgCD,AvgCA,B365CH,B365CD,B365CA,AvgH,AvgD,AvgA
+01/08/2026,Ath Madrid,Barcelona,1,2,2.20,,3.10,2.25,3.35,3.15,2.10,3.40,3.20
+"""
+    fixture = parse_football_data_csv(
+        sample, league_id=140, from_date="2026-08-01", to_date="2026-08-31"
+    )[0]
+    odds = fixture["historical_odds"]
+    assert odds["source"] == "Football-Data.co.uk bet365_closing odds"
+    assert odds["odds_timing"] == "closing"
+    assert (odds["home"], odds["draw"], odds["away"]) == (2.25, 3.35, 3.15)
