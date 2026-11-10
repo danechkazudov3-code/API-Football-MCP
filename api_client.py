@@ -35,15 +35,20 @@ async def get_client() -> httpx.AsyncClient:
 async def api_request(endpoint: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
     """Make a request to the API-Football v3 API.
 
-    retrieved_at is the UTC time the upstream response was received. It is
-    retained in cached responses, so it is not confused with a later cache read.
-    Provider quote timestamps (for example odds fixture.update) remain separate.
+    Args:
+        endpoint: API endpoint path (e.g., "/players", "/fixtures/statistics")
+        params: Query parameters. None values are stripped automatically.
+
+    Returns:
+        Structured response dict with keys: success, results, data, paging, rate_limit_remaining.
+        On error: success=False with error and error_details keys.
     """
     global _rate_limit_remaining
 
     if not API_KEY:
         return _error_response("API key not configured. Set API_FOOTBALL_KEY in .env file.")
 
+    # Strip None values from params
     clean_params = {}
     if params:
         for k, v in params.items():
@@ -68,8 +73,10 @@ async def api_request(endpoint: str, params: dict[str, Any] | None = None) -> di
     except httpx.HTTPError as e:
         return _error_response(f"HTTP error: {e}")
 
+    # Preserve the upstream response time; cached responses retain this original timestamp.
     retrieved_at = datetime.now(timezone.utc).isoformat()
 
+    # Track rate limits from headers
     remaining = response.headers.get("x-ratelimit-requests-remaining")
     if remaining is not None:
         try:
@@ -77,6 +84,7 @@ async def api_request(endpoint: str, params: dict[str, Any] | None = None) -> di
         except ValueError:
             pass
 
+    # Handle HTTP-level errors
     if response.status_code == 401:
         return _error_response("Invalid API key. Check your API_FOOTBALL_KEY in .env file.")
     if response.status_code == 429:
@@ -86,11 +94,13 @@ async def api_request(endpoint: str, params: dict[str, Any] | None = None) -> di
     if response.status_code >= 400:
         return _error_response(f"Bad request (HTTP {response.status_code}). Check your parameters.")
 
+    # Parse JSON response
     try:
         data = response.json()
     except (json.JSONDecodeError, ValueError):
         return _error_response("Invalid JSON response from API-Football.")
 
+    # Check for API-level errors
     errors = data.get("errors", {})
     if errors:
         if isinstance(errors, dict) and errors:
@@ -137,7 +147,10 @@ def current_season(today: date | None = None) -> int:
 
 
 def require_params(names: list[str], values: dict[str, Any]) -> str | None:
-    """Validate that all required parameters are provided (not None)."""
+    """Validate that all required parameters are provided (not None).
+
+    Returns an error message string if validation fails, or None if all params are present.
+    """
     missing = [n for n in names if values.get(n) is None]
     if missing:
         return f"Missing required parameter(s): {', '.join(missing)}"
@@ -145,7 +158,10 @@ def require_params(names: list[str], values: dict[str, Any]) -> str | None:
 
 
 def require_at_least_one(names: list[str], values: dict[str, Any]) -> str | None:
-    """Validate that at least one of the named parameters is provided."""
+    """Validate that at least one of the named parameters is provided.
+
+    Returns an error message string if validation fails, or None if at least one is present.
+    """
     if not any(values.get(n) is not None for n in names):
         return f"At least one of these parameters is required: {', '.join(names)}"
     return None
