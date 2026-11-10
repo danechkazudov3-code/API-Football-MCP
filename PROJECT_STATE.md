@@ -150,3 +150,45 @@ After each meaningful project task:
 6. If a fact was not rechecked, label it historical / not freshly verified.
 
 This document is a handover aid, not a substitute for reading code, checking tests, and inspecting Render.
+
+## 8. Static code audit — 2026-11-10
+
+The following points were confirmed by reading the current files on feature/prediction-engine. This was a source-code review, not a fresh test run or live Render verification.
+
+### Market pricing (tools/prediction.py, tools/recommendation.py)
+- evaluate_candidate() calculates raw implied probability as 1 / odds; it does not remove bookmaker margin (no-vig).
+- It calculates point-estimate expected value as model_probability * decimal_odds - 1.
+- No explicit Edge field/calculation is present in this evaluator.
+- extract_best_prices() chooses the highest available price independently for each supported selection across all returned bookmakers. It retains bookmaker name, but it does not calculate a same-bookmaker no-vig market.
+- The odds extraction currently retains only price and bookmaker name; it does not propagate a provider quote-update timestamp into the candidate.
+- Therefore current candidate EV is a raw point-estimate calculation, not a complete market-edge evaluation. Do not describe it as no-vig EV or timestamp-verified CLV.
+- With model_validated=False passed by the prematch recommendation path, a positive point-estimate EV is labelled LEAN, not VALUE_BET.
+
+### Supported prematch markets
+- Current mapping in tools/recommendation.py covers 1X2, Over/Under 2.5, and BTTS Yes/No.
+- Asian handicaps, Asian totals, individual team totals and other markets are not mapped by this recommendation path.
+
+### Live model (tools/live_recommendation.py, tools/live_model.py)
+- A separate live tool and model exist.
+- The live workflow obtains current fixture state, statistics, events and live odds, then adjusts remaining-goal Poisson rates using remaining time, total shots, shots on target and red cards.
+- The current live baseline does not use a trained/calibrated model and has no established historical live backtest. The tool warns that data may be incomplete or delayed and that the model is not calibrated/backtested.
+- Live candidates use the same evaluator with model_validated=False; positive point-estimate EV can only be LEAN.
+
+### Prediction journal behavior (tools/scanner.py, tools/prediction_journal.py)
+- Both API-Football and Open-Matchday scanner paths call record_scan_reports().
+- When PREDICTION_JOURNAL_DB_PATH is absent, the function returns enabled:false, recorded:0 and explicitly states that no persistent writes occurred.
+- The four journal MCP functions are present in tools/prediction_journal.py.
+- The scan path attempts journal recording; this does not mean the journal is enabled. Standalone match analysis/recommendation should not be assumed to create a journal snapshot.
+- If a path is configured, the status tool reports PATH_CONFIGURED_NOT_VERIFIED; a configured path alone is not proof that Render storage is durable.
+
+### Backtesting (tools/backtesting.py)
+- backtest_league supports Football-Data.co.uk and API-Football sources, with a date range capped at 180 days.
+- The walk-forward evaluator groups fixtures by calendar day so same-day results do not leak into forecasts for other matches on that day.
+- It reports probability-quality metrics only. It explicitly does not calculate ROI or CLV from timestamped odds.
+- The historical run listed above is a preliminary evaluation, not model validation.
+
+### Verification boundary
+- Files reviewed on feature/prediction-engine: tools/scanner.py, tools/poisson_model.py, tools/recommendation.py, tools/prediction.py, tools/analyzer.py, tools/live_recommendation.py, tools/live_model.py, tools/backtesting.py, tools/prediction_journal.py, tools/open_matchday_provider.py, tools/football_data_provider.py, and tools/__init__.py.
+- Relevant tests were read, including scanner and Poisson tests, but were not executed during this audit.
+- Claude's reported total of 53 tools was not independently recounted against a live MCP tool-list response in this audit.
+- Current Render deployment commit and live service health were not re-verified in this audit.
