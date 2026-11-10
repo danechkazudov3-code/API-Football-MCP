@@ -18,6 +18,7 @@ async def test_successful_request(mock_api):
     assert result["results"] == 1
     assert result["data"] == [{"id": 1, "name": "Test"}]
     assert result["rate_limit_remaining"] == 149990
+    assert result["retrieved_at"]
 
 
 @pytest.mark.asyncio
@@ -151,6 +152,7 @@ async def test_cache_reuses_successful_historical_fixture_request(mock_api):
 
     assert first["success"] is True
     assert second["data"] == first["data"]
+    assert second["retrieved_at"] == first["retrieved_at"]
     assert mock_api.call_count == 1
     assert len(api_client._response_cache) == 1
 

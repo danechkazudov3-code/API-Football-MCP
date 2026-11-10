@@ -46,10 +46,10 @@ def test_backtest_rejects_invalid_history_settings():
 def test_same_day_results_do_not_leak_into_other_same_day_forecasts(monkeypatch):
     import tools.backtesting as backtesting
 
-    observed_home_averages = []
+    observed_home_matches = []
 
     def fake_forecast(home_form, away_form, *, league_baseline, home_advantage):
-        observed_home_averages.append(home_form["average_goals_scored"])
+        observed_home_matches.append(home_form.get("matches", []))
         return {
             "available": True,
             "market_probabilities": {
@@ -72,5 +72,7 @@ def test_same_day_results_do_not_leak_into_other_same_day_forecasts(monkeypatch)
     )
 
     assert report["fixtures_evaluated"] == 2
-    # Both forecasts on day 2 must see only the day-1 result (4 goals scored).
-    assert observed_home_averages == [4.0, 4.0]
+    # Both forecasts on day 2 must see only the day-1 result; no same-day result leaks.
+    assert len(observed_home_matches) == 2
+    assert all(len(rows) == 1 for rows in observed_home_matches)
+    assert all(rows[0]["date"].startswith("2025-01-01") for rows in observed_home_matches)

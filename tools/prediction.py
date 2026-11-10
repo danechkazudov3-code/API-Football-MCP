@@ -25,7 +25,7 @@ def evaluate_candidate(
     if odds <= 1.0:
         result.update({
             "status": "INSUFFICIENT_DATA", "fair_odds": None,
-            "implied_probability": None, "expected_value": None,
+            "implied_probability": None, "expected_value": None, "edge": None,
             "reasons": ["Missing or invalid decimal odds (must be > 1.0)."],
         })
         return result
@@ -45,7 +45,7 @@ def evaluate_candidate(
     if not 0.0 < probability < 1.0:
         result.update({
             "status": "INSUFFICIENT_DATA", "fair_odds": None,
-            "expected_value": None,
+            "expected_value": None, "edge": None,
             "reasons": ["No valid supported model probability is available."],
         })
         return result
@@ -53,6 +53,15 @@ def evaluate_candidate(
     result["model_probability"] = probability
     result["fair_odds"] = round(1.0 / probability, 4)
     result["expected_value"] = round(probability * odds - 1.0, 6)
+
+    try:
+        no_vig_probability = float(result.get("no_vig_probability"))
+    except (TypeError, ValueError):
+        no_vig_probability = -1.0
+    result["edge"] = (
+        round(probability - no_vig_probability, 6)
+        if 0.0 < no_vig_probability < 1.0 else None
+    )
 
     if result["expected_value"] < 0:
         status = "NO_BET"

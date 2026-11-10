@@ -61,6 +61,8 @@ def test_summarize_team_form_counts_results_and_orders_matches():
     assert (summary["goals_scored"], summary["goals_conceded"]) == (3, 2)
     assert [match["date"] for match in summary["matches"]] == ["2026-11-01", "2026-11-02", "2026-11-03"]
     assert summary["venue_splits"]["home"]["available"] is True
+    assert summary["venue_splits"]["home"]["matches"][0]["opponent_id"] == 98
+    assert summary["venue_splits"]["home"]["matches"][0]["scored"] == 1
     assert summary["venue_splits"]["away"]["matches_played"] == 0
 
 
@@ -113,7 +115,7 @@ async def test_analyze_match_uses_league_and_venue_adjustments(mock_api):
     assert result["fixture"]["id"] == 9001
     assert result["recent_form"]["home"]["form"] == "WD"
     assert result["recent_form"]["away"]["form"] == "LW"
-    assert result["forecast"]["goal_rates"]["method"] == "league_normalized_venue_attack_defence"
+    assert result["forecast"]["goal_rates"]["method"] == "venue_season_rates_blended_with_opponent_adjusted_recent_form"
     assert result["head_to_head"]["available"] is False
     assert result["injuries"]["available"] is True
     assert mock_api.await_count == 8
@@ -134,4 +136,4 @@ async def test_analyze_match_falls_back_when_season_stats_are_unavailable(mock_a
     result = await analyze_match(9001)
     assert result["success"] is True
     assert result["analysis_status"] == "DATA_COLLECTION_WITH_FORM"
-    assert result["forecast"]["goal_rates"]["method"] == "shrunk_recent_form_with_home_advantage"
+    assert result["forecast"]["goal_rates"]["method"] == "opponent_adjusted_time_weighted_recent_form_fallback"

@@ -1,46 +1,83 @@
-"""Tests for automatic best-price extraction and bet recommendation."""
+"""Tests for bookmaker-consistent odds extraction and bet recommendation."""
 
 import pytest
 
 from tools.recommendation import extract_best_prices, predict_match_bet
 
 
-def test_extract_best_price_across_all_bookmakers():
+def test_extract_best_prices_and_no_vig_are_bookmaker_consistent():
     response = {
         "success": True,
+        "retrieved_at": "2026-11-10T12:00:00+00:00",
         "data": [{
+            "update": "2026-11-10T11:59:00+00:00",
             "bookmakers": [
                 {"name": "Book A", "bets": [
                     {"name": "Match Winner", "values": [
                         {"value": "Home", "odd": "2.00"},
                         {"value": "Draw", "odd": "3.10"},
+                        {"value": "Away", "odd": "3.80"},
                     ]},
                     {"name": "Goals Over/Under", "values": [
                         {"value": "Over 2.5", "odd": "1.80"},
+                        {"value": "Under 2.5", "odd": "2.00"},
                     ]},
                     {"name": "Both Teams Score", "values": [
                         {"value": "Yes", "odd": "1.75"},
+                        {"value": "No", "odd": "2.10"},
                     ]},
                 ]},
                 {"name": "Book B", "bets": [
                     {"name": "Match Winner", "values": [
                         {"value": "Home", "odd": "2.12"},
+                        {"value": "Draw", "odd": "3.20"},
+                        {"value": "Away", "odd": "3.60"},
                     ]},
                     {"name": "Goals Over/Under", "values": [
                         {"value": "Over 2.5", "odd": "1.90"},
+                        {"value": "Under 2.5", "odd": "1.95"},
                     ]},
                 ]},
             ],
         }],
     }
+
     prices = extract_best_prices(response)
-    assert prices["home_win"] == {"odds": 2.12, "bookmaker": "Book B"}
-    assert prices["over_2_5"] == {"odds": 1.90, "bookmaker": "Book B"}
-    assert prices["draw"]["odds"] == 3.10
+    home_sum = (1 / 2.12) + (1 / 3.20) + (1 / 3.60)
+    assert prices["home_win"]["odds"] == 2.12
+    assert prices["home_win"]["bookmaker"] == "Book B"
+    assert prices["home_win"]["no_vig_probability"] == pytest.approx((1 / 2.12) / home_sum, abs=1e-6)
+    assert prices["home_win"]["overround"] == pytest.approx(home_sum - 1, abs=1e-6)
+    assert prices["home_win"]["provider_updated_at"] == "2026-11-10T11:59:00+00:00"
+    assert prices["home_win"]["odds_observed_at"] == "2026-11-10T12:00:00+00:00"
+    assert prices["over_2_5"]["odds"] == 1.90
+    assert prices["over_2_5"]["no_vig_probability"] is not None
     assert prices["btts_yes"]["bookmaker"] == "Book A"
+    assert prices["btts_yes"]["no_vig_probability"] is not None
 
 
-def test_invalid_or_failed_odds_response_returns_empty_prices():
+def test_no_vig_is_not_synthesized_from_different_bookmakers():
+    response = {
+        "success": True,
+        "data": [{
+            "bookmakers": [
+                {"name": "Book A", "bets": [{"name": "Match Winner", "values": [
+                    {"value": "Home", "odd": "2.00"}, {"value": "Draw", "odd": "3.10"},
+                ]}]},
+                {"name": "Book B", "bets": [{"name": "Match Winner", "values": [
+                    {"value": "Away", "odd": "3.80"},
+                ]}]},
+            ],
+        }],
+    }
+    prices = extract_best_prices(response)
+    assert prices["home_win"]["no_vig_probability"] is None
+    assert prices["draw"]["no_vig_probability"] is None
+    assert prices["away_win"]["no_vig_probability"] is None
+    assert prices["home_win"]["market_complete"] is False
+
+
+def test_incomplete_or_failed_odds_response_returns_empty_or_unpriced_data():
     assert extract_best_prices({"success": False, "error": "unavailable"}) == {}
     assert extract_best_prices({"success": True, "data": []}) == {}
 
@@ -88,7 +125,7 @@ async def test_predict_match_bet_keeps_candidates_when_odds_unavailable(monkeypa
 
 
 @pytest.mark.asyncio
-async def test_predict_match_bet_marks_positive_unvalidated_ev_as_lean(monkeypatch):
+async def test_predict_match_bet_keeps_unvalidated_ev_as_lean_and_edge_is_explicit(monkeypatch):
     import tools.recommendation as recommendation
 
     async def fake_analysis(_fixture_id):
@@ -107,7 +144,9 @@ async def test_predict_match_bet_marks_positive_unvalidated_ev_as_lean(monkeypat
     async def fake_odds(_endpoint, _params):
         return {
             "success": True,
+            "retrieved_at": "2026-11-10T12:00:00+00:00",
             "data": [{
+                "update": "2026-11-10T11:59:00+00:00",
                 "bookmakers": [{
                     "name": "Book B",
                     "bets": [{
@@ -122,8 +161,13 @@ async def test_predict_match_bet_marks_positive_unvalidated_ev_as_lean(monkeypat
     monkeypatch.setattr(recommendation, "api_request", fake_odds)
 
     result = await predict_match_bet(123)
-    assert result["primary_pick"]["odds"] == 2.0
-    assert result["primary_pick"]["bookmaker"] == "Book B"
-    assert result["primary_pick"]["expected_value"] == 0.2
-    assert result["primary_pick"]["status"] == "LEAN"
-    assert result["primary_pick"]["status"] != "VALUE_BET"
+    pick = result["primary_pick"]
+    assert pick["odds"] == 2.0
+    assert pick["bookmaker"] == "Book B"
+    assert pick["expected_value"] == 0.2
+    assert pick["no_vig_probability"] is None
+    assert pick["edge"] is None
+    assert pick["provider_updated_at"] == "2026-11-10T11:59:00+00:00"
+    assert pick["odds_observed_at"] == "2026-11-10T12:00:00+00:00"
+    assert pick["status"] == "LEAN"
+    assert pick["status"] != "VALUE_BET"
