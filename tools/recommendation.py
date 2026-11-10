@@ -10,6 +10,13 @@ from tools.analyzer import analyze_match
 from tools.prediction import evaluate_candidate, select_primary_candidate
 
 
+_MARKET_OUTCOMES = {
+    "1x2": {"home_win", "draw", "away_win"},
+    "total_goals_2_5": {"over_2_5", "under_2_5"},
+    "btts": {"btts_yes", "btts_no"},
+}
+
+
 def _market_key(bet_name: str, value: str) -> str | None:
     name = (bet_name or "").strip().lower()
     selection = (value or "").strip().lower()
@@ -26,35 +33,80 @@ def _market_key(bet_name: str, value: str) -> str | None:
     return None
 
 
+def _market_group(selection_key: str) -> str | None:
+    for group, outcomes in _MARKET_OUTCOMES.items():
+        if selection_key in outcomes:
+            return group
+    return None
+
+
 def extract_best_prices(odds_response: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    """Return best decimal price per supported market selection across all books."""
+    """Return best prices, with no-vig context calculated only within that bookmaker.
+
+    A no-vig probability is emitted only when the same bookmaker supplies every
+    outcome for the market. The best price may come from a different bookmaker;
+    in that case its own market snapshot is used, never a synthetic cross-book
+    market. Incomplete markets retain the price but have no no-vig probability.
+    """
     best: dict[str, dict[str, Any]] = {}
     if not odds_response.get("success"):
         return best
 
+    observed_at = odds_response.get("retrieved_at")
     for fixture in odds_response.get("data") or []:
+        provider_updated_at = fixture.get("update")
         for bookmaker in fixture.get("bookmakers") or []:
             book_name = bookmaker.get("name", "Unknown")
+            markets: dict[str, dict[str, float]] = {}
+
             for bet in bookmaker.get("bets") or []:
                 bet_name = bet.get("name", "")
                 for value in bet.get("values") or []:
                     key = _market_key(bet_name, str(value.get("value", "")))
+                    if not key:
+                        continue
                     try:
                         price = float(value.get("odd"))
                     except (TypeError, ValueError):
                         continue
-                    if not key or price <= 1.0:
+                    if price <= 1.0:
                         continue
+                    group = _market_group(key)
+                    if group:
+                        markets.setdefault(group, {})[key] = price
+
+            for group, selections in markets.items():
+                required = _MARKET_OUTCOMES[group]
+                complete = required.issubset(selections)
+                implied = {key: 1.0 / selections[key] for key in required if key in selections}
+                overround = sum(implied.values()) if complete else None
+                if complete and (overround is None or overround <= 0):
+                    complete = False
+                    overround = None
+
+                for key, price in selections.items():
+                    quote = {
+                        "odds": price,
+                        "bookmaker": book_name,
+                        "implied_probability": round(1.0 / price, 6),
+                        "no_vig_probability": (
+                            round(implied[key] / overround, 6)
+                            if complete and overround is not None else None
+                        ),
+                        "overround": round(overround - 1.0, 6) if complete and overround is not None else None,
+                        "market_complete": complete,
+                        "provider_updated_at": provider_updated_at,
+                        "odds_observed_at": observed_at,
+                        "odds_source": "API-Football",
+                    }
                     if key not in best or price > best[key]["odds"]:
-                        best[key] = {"odds": price, "bookmaker": book_name}
+                        best[key] = quote
     return best
 
 
 @mcp.tool()
 async def predict_match_bet(fixture_id: int) -> dict[str, Any]:
-    """Generate a primary pre-match pick, compare available odds across bookmakers,
-    and keep all supported candidates visible even when they are not recommended.
-    """
+    """Generate a primary pre-match pick and keep all supported candidates visible."""
     analysis = await analyze_match(fixture_id)
     if not analysis.get("success"):
         return {
@@ -94,7 +146,7 @@ async def predict_match_bet(fixture_id: int) -> dict[str, Any]:
                 "over_2_5": "Over 2.5", "under_2_5": "Under 2.5",
                 "btts_yes": "Yes", "btts_no": "No",
             }.items() if label == candidate.get("selection") and (
-                (key in {"home_win", "draw", "away_win"} and candidate.get("market") == "1X2")
+                (key in {"home_win", "draw", "away_win} and candidate.get("market") == "1X2")
                 or (key in {"over_2_5", "under_2_5"} and candidate.get("market") == "Total goals 2.5")
                 or (key in {"btts_yes", "btts_no"} and candidate.get("market") == "Both teams to score")
             )),
@@ -125,6 +177,7 @@ async def predict_match_bet(fixture_id: int) -> dict[str, Any]:
         "candidates": candidates,
         "odds_source": "API-Football; best available returned bookmaker price",
         "odds_available": bool(best_prices),
+        "odds_retrieved_at": prices_response.get("retrieved_at"),
         "odds_error": prices_response.get("error") if not prices_response.get("success") else None,
         "warning": (
             "Experimental Poisson baseline only; it has not been calibrated or backtested. "
