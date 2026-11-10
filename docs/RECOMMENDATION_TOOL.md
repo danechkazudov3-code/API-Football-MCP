@@ -32,14 +32,9 @@ The current Poisson baseline is experimental, uses only a small recent-form samp
 Call `predict_match_bet(fixture_id=123456)` from the MCP client. The tool returns `primary_pick`, the complete `candidates` list, the best returned bookmaker price where available, and explicit model limitations.
 
 
-## Coefficient preference
+## Candidate ranking
 
-The candidate ranker now prefers decimal odds from **1.50 to 2.50** when candidates have the same recommendation status. This is a soft preference, not a probability claim and not a hard filter:
-- Below 1.50: marked `LOW_ODDS`; still shown.
-- 1.50–2.50: marked `PREFERRED`.
-- Above 2.50: marked `HIGH_VARIANCE`; still shown and requires stronger scrutiny.
-
-The status / EV assessment remains separate from the odds profile. A high coefficient alone never creates value. The primary recommendation respects evidence status, then EV and model probability; odds bands are metadata only and do not affect ranking. A separate `most_likely_outcome` field reports the candidate with the highest model probability, independently of its price or betting value.
+Odds profile bands (below 1.50, 1.50–2.50, above 2.50) are descriptive metadata only. They do not affect candidate ranking. The primary betting candidate is ranked by evidence status, EV and model probability. The separate `most_likely_outcome` field identifies the highest model probability, irrespective of odds or EV.
 
 
 ## Bookmaker-consistent pricing and timestamps
