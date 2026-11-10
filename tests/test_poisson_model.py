@@ -117,7 +117,7 @@ def test_recent_form_is_recency_weighted_and_adjusted_for_opponent_strength():
     result = adjust_recent_form_for_opponents(form, strengths)
     older_weight = 0.5 ** (1 / 4)
     expected_scored = (1.0 / 0.60 + (2.0 / 1.60) * older_weight) / (1 + older_weight)
-    expected_conceded = (2.0 / 2.0 + (1.0 / 0.60) * older_weight) / (1 + older_weight)
+    expected_conceded = (2.0 / 1.60 + (1.0 / 0.60) * older_weight) / (1 + older_weight)
     assert result["average_goals_scored"] == pytest.approx(expected_scored, abs=1e-4)
     assert result["average_goals_conceded"] == pytest.approx(expected_conceded, abs=1e-4)
     assert result["opponent_adjusted_matches"] == 2
