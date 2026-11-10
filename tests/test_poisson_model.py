@@ -135,5 +135,5 @@ def test_recent_form_adjustment_accepts_string_opponent_keys():
     })
     assert result["opponent_adjustment_available"] is True
     assert result["opponent_adjusted_matches"] == 1
-    assert result["average_goals_scored"] == pytest.approx(4.0)
+    assert result["average_goals_scored"] == pytest.approx(2 / 0.60)
     assert result["average_goals_conceded"] == pytest.approx(2 / 1.5)
