@@ -207,7 +207,7 @@ Use these first to find IDs by name, then pass IDs to other tools.
 | Tool | Description |
 |------|-------------|
 | `get_predictions` | API-Football's match prediction with win/draw probabilities, advice, and team comparison |
-| `predict_match_bet` | Experimental automatic pre-match pick using PARI-only prices, fair odds, EV, no-vig edge, and visible candidate ranking |
+| `predict_match_bet` | Experimental automatic pre-match pick using available bookmaker prices, fair odds, EV, no-vig edge, and visible candidate ranking |
 | `scan_best_bets` | Automatically scan upcoming fixtures and rank their primary betting opportunities with a quota-safe fixture cap |
 | `predict_live_match_bet` | Separate in-play model using current score, elapsed time, live shots, red cards, and live odds |
 | `backtest_league` | Chronological walk-forward probability evaluation on historical league fixtures (no ROI without historical odds) |
@@ -299,7 +299,7 @@ Pre-match scans can append immutable forecast snapshots, candidates, timestamped
 
 ## MyAnalytics Prediction Engine
 
-The prediction engine requirements and implementation roadmap are documented in [`docs/PREDICTION_ENGINE_SPEC.md`](docs/PREDICTION_ENGINE_SPEC.md). The first pure pricing/ranking utilities are in `tools/prediction.py`, with unit tests in `tests/test_prediction.py`. The experimental Poisson baseline now uses league goal baselines and home/away team scoring and conceding rates when available, with a shrunk recent-form fallback. A separate in-play model estimates goals remaining from match time, score, live shots and red cards. A chronological walk-forward backtest reports probability metrics without inventing ROI when historical odds are unavailable. The MCP tool `predict_match_bet(fixture_id)` selects a primary pre-match candidate, compares supported markets with PARI prices only, and keeps all candidates visible. The model is not calibrated or backtested: positive point-estimate EV is capped at LEAN, and VALUE_BET remains disabled until validation. See `docs/RECOMMENDATION_TOOL.md` and `docs/BACKTESTING_AND_LIVE.md`.
+The prediction engine requirements and implementation roadmap are documented in [`docs/PREDICTION_ENGINE_SPEC.md`](docs/PREDICTION_ENGINE_SPEC.md). The first pure pricing/ranking utilities are in `tools/prediction.py`, with unit tests in `tests/test_prediction.py`. The experimental Poisson baseline now uses league goal baselines and home/away team scoring and conceding rates when available, with a shrunk recent-form fallback. A separate in-play model estimates goals remaining from match time, score, live shots and red cards. A chronological walk-forward backtest reports probability metrics without inventing ROI when historical odds are unavailable. The MCP tool `predict_match_bet(fixture_id)` selects a primary pre-match candidate, compares supported markets with the best available bookmaker prices, and keeps all candidates visible. The model is not calibrated or backtested: positive point-estimate EV is capped at LEAN, and VALUE_BET remains disabled until validation. See `docs/RECOMMENDATION_TOOL.md` and `docs/BACKTESTING_AND_LIVE.md`.
 
 
 ### Browser Backtest Interface
