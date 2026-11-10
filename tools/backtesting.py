@@ -90,9 +90,12 @@ def _no_vig_1x2(odds: dict[str, Any] | None) -> dict[str, float] | None:
     if not odds:
         return None
     try:
-        inverse = {key: 1.0 / float(odds[key]) for key in ("home", "draw", "away")}
-    except (KeyError, TypeError, ValueError, ZeroDivisionError):
+        decimal_odds = {key: float(odds[key]) for key in ("home", "draw", "away")}
+    except (KeyError, TypeError, ValueError):
         return None
+    if not all(math.isfinite(value) and value > 1.0 for value in decimal_odds.values()):
+        return None
+    inverse = {key: 1.0 / value for key, value in decimal_odds.items()}
     if not all(math.isfinite(value) and value > 0 for value in inverse.values()):
         return None
     overround = sum(inverse.values())
@@ -151,10 +154,14 @@ def run_walk_forward_backtest(
                 total_goals = sum(h + a for h, a in league_hist)
                 league_baseline = total_goals / (2 * len(league_hist))
                 strengths = _historical_opponent_strengths(team_history, league_id, league_baseline)
-                home_venue = [row for row in home_hist if row.get("venue") == "home"]
-                away_venue = [row for row in away_hist if row.get("venue") == "away"]
-                home_source = home_venue if len(home_venue) >= 3 else home_hist
-                away_source = away_venue if len(away_venue) >= 3 else away_hist
+                # Mirror the live analyzer: fetch the last N matches first, then
+                # choose a venue split only when that recent window has >=3 games.
+                home_recent = home_hist[-history_window:]
+                away_recent = away_hist[-history_window:]
+                home_venue = [row for row in home_recent if row.get("venue") == "home"]
+                away_venue = [row for row in away_recent if row.get("venue") == "away"]
+                home_source = home_venue if len(home_venue) >= 3 else home_recent
+                away_source = away_venue if len(away_venue) >= 3 else away_recent
                 home_form = adjust_recent_form_for_opponents(
                     _form(home_source, "home", history_window), strengths
                 )
