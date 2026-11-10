@@ -6,7 +6,7 @@ This evaluates probability quality only; profitability requires historical odds.
 from __future__ import annotations
 import math
 from typing import Any
-from tools.poisson_model import forecast_from_recent_form
+from tools.poisson_model import forecast_from_recent_form, adjust_recent_form_for_opponents
 from tools.football_data_provider import fetch_football_data_fixtures
 
 
@@ -27,15 +27,41 @@ def _fixture_parts(item: dict[str, Any]) -> tuple[str, int, int, int, int] | Non
     return str(fixture.get("date") or ""), int(home), int(away), int(hg), int(ag)
 
 
-def _form(history: list[tuple[int, int]], team_name: str, limit: int) -> dict[str, Any]:
+def _form(
+    history: list[dict[str, Any]],
+    team_name: str,
+    limit: int,
+) -> dict[str, Any]:
     recent = history[-limit:]
     if not recent:
-        return {"available": False, "team": team_name}
+        return {"available": False, "team": team_name, "matches_played": 0, "matches": []}
     return {
         "available": True, "team": team_name, "matches_played": len(recent),
-        "average_goals_scored": sum(x[0] for x in recent) / len(recent),
-        "average_goals_conceded": sum(x[1] for x in recent) / len(recent),
+        "average_goals_scored": sum(x["scored"] for x in recent) / len(recent),
+        "average_goals_conceded": sum(x["conceded"] for x in recent) / len(recent),
+        "matches": recent,
     }
+
+
+def _historical_opponent_strengths(
+    team_history: dict[tuple[str, int], list[dict[str, Any]]],
+    league_id: str,
+    league_baseline: float,
+) -> dict[int, dict[str, float]]:
+    """Estimate shrunk opponent indices using only results before the forecast date."""
+    strengths = {}
+    for (history_league, team_id), history in team_history.items():
+        if history_league != league_id or not history:
+            continue
+        count = len(history)
+        attack_rate = sum(row["scored"] for row in history) / count
+        defence_rate = sum(row["conceded"] for row in history) / count
+        shrink = count / (count + 5.0)
+        strengths[team_id] = {
+            "attack_index": 1.0 + (attack_rate / league_baseline - 1.0) * shrink,
+            "defence_index": 1.0 + (defence_rate / league_baseline - 1.0) * shrink,
+        }
+    return strengths
 
 
 def _safe_log(value: float) -> float:
@@ -56,7 +82,7 @@ def run_walk_forward_backtest(
         (item for item in fixtures if _fixture_parts(item)),
         key=lambda item: _fixture_parts(item)[0],
     )
-    team_history: dict[tuple[str, int], list[tuple[int, int]]] = {}
+    team_history: dict[tuple[str, int], list[dict[str, Any]]] = {}
     league_history: dict[str, list[tuple[int, int]]] = {}
     predictions: list[dict[str, Any]] = []
 
@@ -87,9 +113,19 @@ def run_walk_forward_backtest(
             if len(home_hist) >= min_history and len(away_hist) >= min_history and league_hist:
                 total_goals = sum(h + a for h, a in league_hist)
                 league_baseline = total_goals / (2 * len(league_hist))
+                strengths = _historical_opponent_strengths(team_history, league_id, league_baseline)
+                home_venue = [row for row in home_hist if row.get("venue") == "home"]
+                away_venue = [row for row in away_hist if row.get("venue") == "away"]
+                home_source = home_venue if len(home_venue) >= 3 else home_hist
+                away_source = away_venue if len(away_venue) >= 3 else away_hist
+                home_form = adjust_recent_form_for_opponents(
+                    _form(home_source, "home", history_window), strengths
+                )
+                away_form = adjust_recent_form_for_opponents(
+                    _form(away_source, "away", history_window), strengths
+                )
                 forecast = forecast_from_recent_form(
-                    _form(home_hist, "home", history_window),
-                    _form(away_hist, "away", history_window),
+                    home_form, away_form,
                     league_baseline=league_baseline,
                     home_advantage=home_advantage,
                 )
@@ -111,8 +147,15 @@ def run_walk_forward_backtest(
 
         # Only after all forecasts for this date are complete, add that day's results.
         for league_id, home_id, away_id, hg, ag, _item in day_results:
-            team_history.setdefault((league_id, home_id), []).append((hg, ag))
-            team_history.setdefault((league_id, away_id), []).append((ag, hg))
+            date_value = _fixture_parts(_item)[0]
+            team_history.setdefault((league_id, home_id), []).append({
+                "date": date_value, "scored": hg, "conceded": ag,
+                "opponent_id": away_id, "venue": "home",
+            })
+            team_history.setdefault((league_id, away_id), []).append({
+                "date": date_value, "scored": ag, "conceded": hg,
+                "opponent_id": home_id, "venue": "away",
+            })
             league_history.setdefault(league_id, []).append((hg, ag))
 
     if not predictions:
