@@ -40,13 +40,15 @@ def _market_group(selection_key: str) -> str | None:
     return None
 
 
-def extract_best_prices(odds_response: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    """Return best prices, with no-vig context calculated only within that bookmaker.
+def extract_best_prices(
+    odds_response: dict[str, Any],
+    *,
+    allowed_bookmakers: set[str] | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Extract prices and no-vig probabilities from complete single-book markets.
 
-    A no-vig probability is emitted only when the same bookmaker supplies every
-    outcome for the market. The best price may come from a different bookmaker;
-    in that case its own market snapshot is used, never a synthetic cross-book
-    market. Incomplete markets retain the price but have no no-vig probability.
+    When an allowlist is supplied, only exact normalized bookmaker-name matches
+    are eligible. No-vig probabilities are never synthesized across books.
     """
     best: dict[str, dict[str, Any]] = {}
     if not odds_response.get("success"):
@@ -57,6 +59,11 @@ def extract_best_prices(odds_response: dict[str, Any]) -> dict[str, dict[str, An
         provider_updated_at = fixture.get("update")
         for bookmaker in fixture.get("bookmakers") or []:
             book_name = bookmaker.get("name", "Unknown")
+            normalize = lambda value: "".join(ch for ch in str(value).casefold() if ch.isalnum())
+            if allowed_bookmakers is not None and normalize(book_name) not in {
+                normalize(name) for name in allowed_bookmakers
+            }:
+                continue
             markets: dict[str, dict[str, float]] = {}
 
             for bet in bookmaker.get("bets") or []:
@@ -135,7 +142,8 @@ async def predict_match_bet(fixture_id: int) -> dict[str, Any]:
         }
 
     prices_response = await api_request("/odds", {"fixture": fixture_id})
-    best_prices = extract_best_prices(prices_response)
+    # MyAnalytics current execution policy: use PARI prices only; never silently substitute another book.
+    best_prices = extract_best_prices(prices_response, allowed_bookmakers={"PARI"})
     candidates = []
 
     for item in forecast.get("candidates") or []:
@@ -159,6 +167,11 @@ async def predict_match_bet(fixture_id: int) -> dict[str, Any]:
         candidates.append(candidate)
 
     primary = select_primary_candidate(candidates)
+    most_likely = max(
+        (item for item in candidates if 0.0 < float(item.get("model_probability") or 0.0) < 1.0),
+        key=lambda item: float(item["model_probability"]),
+        default=None,
+    )
     return {
         "success": True,
         "status": primary.get("status") if primary else "INSUFFICIENT_DATA",
@@ -174,8 +187,9 @@ async def predict_match_bet(fixture_id: int) -> dict[str, Any]:
         "model": forecast.get("model"),
         "model_validated": False,
         "primary_pick": primary,
+        "most_likely_outcome": most_likely,
         "candidates": candidates,
-        "odds_source": "API-Football; best available returned bookmaker price",
+        "odds_source": "API-Football; PARI only; no bookmaker substitution",
         "odds_available": bool(best_prices),
         "odds_retrieved_at": prices_response.get("retrieved_at"),
         "odds_error": prices_response.get("error") if not prices_response.get("success") else None,
