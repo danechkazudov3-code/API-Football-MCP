@@ -221,3 +221,34 @@ Validation actually completed on 2026-11-10:
 Not yet implemented:
 - Settlement-aware calculations for push/half-win/half-loss markets such as Asian lines.
 - Historical odds capture/CLV validation and model calibration.
+
+
+## 10. Pre-match model v3 and pricing implementation — 2026-11-10
+
+Draft PR #2 was expanded to include the next pre-match model iteration:
+https://github.com/danechkazudov3-code/API-Football-MCP/pull/2
+
+Implemented on feature/no-vig-pricing:
+- Up to ten latest completed matches per team.
+- Home-only recent sample for the home team and away-only sample for the away team when at least three venue-specific matches exist.
+- Exponential recency weighting with a four-match half-life.
+- For upcoming fixtures, opponent-adjusted goals using attack/defence indices derived from current season standings; multipliers are bounded to 0.60–1.60 and unknown opponents receive neutral adjustment.
+- Season venue scoring rates blended with opponent-adjusted recent form; recent influence is sample-dependent and capped at 35%.
+- Shrunk recent-form fallback when season statistics are unavailable.
+- Independent Poisson score matrix and supported 1X2, Over/Under 2.5 and BTTS probabilities.
+- Historical backtest now reconstructs opponent indices exclusively from prior fixtures, applies venue-specific history where the sample allows, and forecasts all matches on a date before adding any results from that date.
+- No-vig market probabilities remain bookmaker-consistent; Edge and quote timestamps are retained.
+
+Validation:
+- GitHub Actions run 42746256033 passed all 166 unit tests and Python compileall.
+- An earlier run exposed three test expectation mismatches; these were corrected before the passing run.
+- No live API call or Render deployment was performed.
+- Temporary CI workflows were removed after validation.
+- PR #2 is draft/open, targeting feature/prediction-engine; Render still deploys feature/prediction-engine.
+
+Limitations:
+- Model is experimental and uncalibrated; model_validated=false.
+- Current standings are only used for current upcoming fixtures, never for historical backtest forecasts.
+- No xG, player-level lineup model, rest/travel adjustment, calibrated uncertainty interval or Dixon-Coles low-score correction.
+- Backtest still reports probability quality only; no ROI/CLV without reliable timestamped odds.
+- VALUE_BET remains disabled.
