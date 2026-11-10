@@ -242,3 +242,31 @@ async def test_scan_falls_back_when_api_fixture_analysis_fails(monkeypatch):
     assert result["status"] == "FALLBACK_SCAN_COMPLETED"
     assert result["all_matches"][0]["fixture"]["id"] == "open-matchday:140:test"
     assert result["all_matches"][0]["odds_available"] is False
+
+
+
+def test_scanner_ranking_does_not_use_odds_profile_as_tiebreaker():
+    from tools.scanner import _rank_key
+
+    higher_ev_high_variance = {
+        "primary_pick": {
+            "status": "LEAN",
+            "odds_profile": "HIGH_VARIANCE",
+            "expected_value": 0.12,
+            "model_probability": 0.56,
+        }
+    }
+    lower_ev_preferred_band = {
+        "primary_pick": {
+            "status": "LEAN",
+            "odds_profile": "PREFERRED",
+            "expected_value": 0.05,
+            "model_probability": 0.60,
+        }
+    }
+
+    ranked = sorted(
+        [lower_ev_preferred_band, higher_ev_high_variance],
+        key=_rank_key,
+    )
+    assert ranked[0] is higher_ev_high_variance
