@@ -12,10 +12,11 @@ The roadmap is ordered by dependency and current project constraints. Items are 
 - [x] Inspect current prematch pricing and odds extraction code; static review completed 2026-11-10.
 
 ### P1 — Improve market probability handling
-- [ ] Implement and test no-vig market probabilities for compatible mutually exclusive outcomes (for example, 1X2), keeping bookmakers separate.
-- [ ] Calculate market Edge explicitly and define settlement-aware EV for each supported market.
-- [ ] Preserve bookmaker identity and provider quote timestamp; if timestamp is unavailable, label the quote unverified rather than substituting a capture timestamp.
-- [ ] Ensure candidate ranking does not combine prices from different bookmakers when calculating a market's overround.
+- [x] Implement and test no-vig market probabilities for complete supported 1X2, Over/Under 2.5 and BTTS markets, keeping bookmakers separate (draft PR #2; not merged).
+- [x] Calculate Edge explicitly as model probability minus same-bookmaker no-vig probability (draft PR #2; not merged).
+- [x] Preserve bookmaker identity, provider update timestamp and separate upstream response retrieval timestamp; incomplete markets keep no-vig/Edge unavailable (draft PR #2; not merged).
+- [x] Ensure overround/no-vig calculations never combine prices from different bookmakers (draft PR #2; not merged).
+- [ ] Extend EV settlement logic before adding push/half-win/half-loss markets such as Asian lines.
 - [ ] Do not enable VALUE BET status merely because no-vig and EV calculations exist.
 
 ### P2 — Evaluate model quality
