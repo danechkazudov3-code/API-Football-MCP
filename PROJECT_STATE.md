@@ -192,3 +192,8 @@ The following points were confirmed by reading the current files on feature/pred
 - Relevant tests were read, including scanner and Poisson tests, but were not executed during this audit.
 - Claude's reported total of 53 tools was not independently recounted against a live MCP tool-list response in this audit.
 - Current Render deployment commit and live service health were not re-verified in this audit.
+### Live Render verification — 2026-11-10
+- Render service was rechecked after the static code review: service is not suspended, plan is Free, one instance, Docker runtime, auto-deploy enabled for feature/prediction-engine.
+- Latest deployment returned by Render was status live: deploy ID dep-dbp38cjnv7mc73bbnue0, commit 6dbbf87a06603610a9829414666304e925c42197, commit message 'Harden journal storage failures and odds validation'.
+- Render service branch remains feature/prediction-engine. Documentation branch docs/project-state is not configured for auto-deploy.
+- This confirms Render reports the latest listed deployment as live; it does not by itself prove every MCP tool works end-to-end.
