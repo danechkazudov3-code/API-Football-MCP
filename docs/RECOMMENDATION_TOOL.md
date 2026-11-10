@@ -6,7 +6,7 @@ The MCP tool `predict_match_bet(fixture_id)` provides a first end-to-end pre-mat
 
 1. Calls `analyze_match` to load the fixture, recent form and experimental Poisson market probabilities.
 2. Makes one pre-match `/odds` request for that fixture.
-3. Filters the returned prices to PARI only; it never substitutes another bookmaker.
+3. Considers all bookmakers returned by the odds provider; no bookmaker is hard-coded.
 4. Finds the best returned decimal price for supported selections:
    - Match Winner: Home / Draw / Away
    - Goals Over/Under: Over 2.5 / Under 2.5
@@ -16,7 +16,7 @@ The MCP tool `predict_match_bet(fixture_id)` provides a first end-to-end pre-mat
 
 ## Status safety
 
-The current Poisson baseline is experimental, uses only a small recent-form sample, and is not calibrated or backtested. Consequently, `model_validated=False` is always passed to the pricing layer. Positive point-estimate EV is not enough: a complete PARI market and strictly positive no-vig edge are required even for LEAN. Missing PARI odds, an incomplete PARI market, or missing edge produces INSUFFICIENT_DATA. Non-positive edge produces NO_BET. This is intentional.
+The current Poisson baseline is experimental, uses only a small recent-form sample, and is not calibrated or backtested. Consequently, `model_validated=False` is always passed to the pricing layer. Positive point-estimate EV is not enough: a complete same-bookmaker market and strictly positive no-vig edge are required even for LEAN. Missing odds, an incomplete bookmaker market, or missing edge produces INSUFFICIENT_DATA. Non-positive edge produces NO_BET. This is intentional.
 
 ## Limitations / next work
 
@@ -84,8 +84,8 @@ calibration or proof of betting profitability. The independent-Poisson
 probabilities remain experimental and VALUE_BET remains disabled.
 
 
-## Current MyAnalytics bookmaker policy
+## Current bookmaker policy
 
-The automatic pre-match recommendation tool currently accepts PARI quotes only. If PARI is absent from the API-Football response, it returns unpriced candidates / `INSUFFICIENT_DATA` rather than silently using another bookmaker. This is an execution policy for the current manual PARI workflow, not a limitation of the probability model.
+The automatic pre-match recommendation tool does not hard-code a bookmaker. It considers quotes returned by API-Football and selects the highest available price for each supported selection. Each quote retains its bookmaker identity. No-vig probabilities are calculated only from a complete market supplied by that same bookmaker; prices from different bookmakers are never combined to synthesize a market.
 
 A candidate can be `LEAN` only when both point-estimate EV is non-negative and no-vig edge is strictly positive. `VALUE_BET` additionally requires validated model status, an uncertainty lower bound, positive conservative edge, and the configured conservative EV threshold.
