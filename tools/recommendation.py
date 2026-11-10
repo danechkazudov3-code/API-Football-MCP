@@ -17,6 +17,10 @@ _MARKET_OUTCOMES = {
 }
 
 
+def _normalize_bookmaker_name(value: str) -> str:
+    return "".join(ch for ch in str(value).casefold() if ch.isalnum())
+
+
 def _market_key(bet_name: str, value: str) -> str | None:
     name = (bet_name or "").strip().lower()
     selection = (value or "").strip().lower()
@@ -54,17 +58,16 @@ def extract_best_prices(
     if not odds_response.get("success"):
         return best
 
+    allowed_names = (
+        {_normalize_bookmaker_name(name) for name in allowed_bookmakers}
+        if allowed_bookmakers is not None else None
+    )
     observed_at = odds_response.get("retrieved_at")
     for fixture in odds_response.get("data") or []:
         provider_updated_at = fixture.get("update")
         for bookmaker in fixture.get("bookmakers") or []:
             book_name = bookmaker.get("name", "Unknown")
-            normalize = lambda value: "".join(ch for ch in str(value).casefold() if ch.isalnum())
-            allowed_names = {normalize(name) for name in (allowed_bookmakers or set())}
-            if allowed_bookmakers is not None and not any(
-                normalize(book_name) == name or normalize(book_name).startswith(name)
-                for name in allowed_names
-            ):
+            if allowed_names is not None and _normalize_bookmaker_name(book_name) not in allowed_names:
                 continue
             markets: dict[str, dict[str, float]] = {}
 
