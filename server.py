@@ -63,7 +63,7 @@ def main():
 
         from mcp_auth import MCPBearerAuthMiddleware
 
-        app = MCPBearerAuthMiddleware(mcp.streamable_http_app(host=args.host))
+        app = MCPBearerAuthMiddleware(mcp.streamable_http_app())
         uvicorn.run(app, host=args.host, port=args.port, log_level="info")
     else:
         # stdio remains protected by the local process boundary. The legacy
