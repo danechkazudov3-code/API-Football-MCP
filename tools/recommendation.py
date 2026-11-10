@@ -17,6 +17,10 @@ _MARKET_OUTCOMES = {
 }
 
 
+def _normalize_bookmaker_name(value: str) -> str:
+    return "".join(ch for ch in str(value).casefold() if ch.isalnum())
+
+
 def _market_key(bet_name: str, value: str) -> str | None:
     name = (bet_name or "").strip().lower()
     selection = (value or "").strip().lower()
@@ -40,23 +44,32 @@ def _market_group(selection_key: str) -> str | None:
     return None
 
 
-def extract_best_prices(odds_response: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    """Return best prices, with no-vig context calculated only within that bookmaker.
+def extract_best_prices(
+    odds_response: dict[str, Any],
+    *,
+    allowed_bookmakers: set[str] | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Extract best prices; calculate no-vig only within a complete single-book market.
 
-    A no-vig probability is emitted only when the same bookmaker supplies every
-    outcome for the market. The best price may come from a different bookmaker;
-    in that case its own market snapshot is used, never a synthetic cross-book
-    market. Incomplete markets retain the price but have no no-vig probability.
+    An optional allowlist can restrict providers, using exact normalized names.
+    By default all bookmakers returned by the odds provider are eligible.
+    No-vig probabilities are never synthesized across bookmakers.
     """
     best: dict[str, dict[str, Any]] = {}
     if not odds_response.get("success"):
         return best
 
+    allowed_names = (
+        {_normalize_bookmaker_name(name) for name in allowed_bookmakers}
+        if allowed_bookmakers is not None else None
+    )
     observed_at = odds_response.get("retrieved_at")
     for fixture in odds_response.get("data") or []:
         provider_updated_at = fixture.get("update")
         for bookmaker in fixture.get("bookmakers") or []:
             book_name = bookmaker.get("name", "Unknown")
+            if allowed_names is not None and _normalize_bookmaker_name(book_name) not in allowed_names:
+                continue
             markets: dict[str, dict[str, float]] = {}
 
             for bet in bookmaker.get("bets") or []:
@@ -135,6 +148,7 @@ async def predict_match_bet(fixture_id: int) -> dict[str, Any]:
         }
 
     prices_response = await api_request("/odds", {"fixture": fixture_id})
+    # Use the best quotes returned by the configured odds provider; no bookmaker is hard-coded.
     best_prices = extract_best_prices(prices_response)
     candidates = []
 
@@ -159,6 +173,11 @@ async def predict_match_bet(fixture_id: int) -> dict[str, Any]:
         candidates.append(candidate)
 
     primary = select_primary_candidate(candidates)
+    most_likely = max(
+        (item for item in candidates if 0.0 < float(item.get("model_probability") or 0.0) < 1.0),
+        key=lambda item: float(item["model_probability"]),
+        default=None,
+    )
     return {
         "success": True,
         "status": primary.get("status") if primary else "INSUFFICIENT_DATA",
@@ -174,14 +193,16 @@ async def predict_match_bet(fixture_id: int) -> dict[str, Any]:
         "model": forecast.get("model"),
         "model_validated": False,
         "primary_pick": primary,
+        "most_likely_outcome": most_likely,
         "candidates": candidates,
-        "odds_source": "API-Football; best available returned bookmaker price",
+        "odds_source": "API-Football; best returned bookmaker quotes; no hard-coded bookmaker",
         "odds_available": bool(best_prices),
         "odds_retrieved_at": prices_response.get("retrieved_at"),
         "odds_error": prices_response.get("error") if not prices_response.get("success") else None,
         "warning": (
             "Experimental Poisson baseline only; it has not been calibrated or backtested. "
-            "A positive point-estimate EV is LEAN, never VALUE_BET, until validation."
+            "Positive EV plus positive same-bookmaker no-vig edge may be labelled LEAN; "
+            "VALUE_BET remains disabled until validation."
         ),
         "rate_limit_remaining": prices_response.get("rate_limit_remaining"),
     }

@@ -5,8 +5,8 @@ The MCP tool `predict_match_bet(fixture_id)` provides a first end-to-end pre-mat
 ## Current behavior
 
 1. Calls `analyze_match` to load the fixture, recent form and experimental Poisson market probabilities.
-2. Makes one unfiltered pre-match `/odds` request for that fixture.
-3. Reads the returned bookmakers without requiring a specific bookmaker.
+2. Makes one pre-match `/odds` request for that fixture.
+3. Considers all bookmakers returned by the odds provider; no bookmaker is hard-coded.
 4. Finds the best returned decimal price for supported selections:
    - Match Winner: Home / Draw / Away
    - Goals Over/Under: Over 2.5 / Under 2.5
@@ -16,7 +16,7 @@ The MCP tool `predict_match_bet(fixture_id)` provides a first end-to-end pre-mat
 
 ## Status safety
 
-The current Poisson baseline is experimental, uses only a small recent-form sample, and is not calibrated or backtested. Consequently, `model_validated=False` is always passed to the pricing layer. Positive point-estimate EV can be labelled LEAN, but never VALUE_BET. Missing odds or probabilities produce INSUFFICIENT_DATA. This is intentional.
+The current Poisson baseline is experimental, uses only a small recent-form sample, and is not calibrated or backtested. Consequently, `model_validated=False` is always passed to the pricing layer. Positive point-estimate EV is not enough: a complete same-bookmaker market and strictly positive no-vig edge are required even for LEAN. Missing odds, an incomplete bookmaker market, or missing edge produces INSUFFICIENT_DATA. Non-positive edge produces NO_BET. This is intentional.
 
 ## Limitations / next work
 
@@ -32,14 +32,9 @@ The current Poisson baseline is experimental, uses only a small recent-form samp
 Call `predict_match_bet(fixture_id=123456)` from the MCP client. The tool returns `primary_pick`, the complete `candidates` list, the best returned bookmaker price where available, and explicit model limitations.
 
 
-## Coefficient preference
+## Candidate ranking
 
-The candidate ranker now prefers decimal odds from **1.50 to 2.50** when candidates have the same recommendation status. This is a soft preference, not a probability claim and not a hard filter:
-- Below 1.50: marked `LOW_ODDS`; still shown.
-- 1.50–2.50: marked `PREFERRED`.
-- Above 2.50: marked `HIGH_VARIANCE`; still shown and requires stronger scrutiny.
-
-The status / EV assessment remains separate from the odds profile. A high coefficient alone never creates value. The primary recommendation first respects evidence status, then the preferred odds profile, then conservative EV and model probability. These default bands are configurable product policy to revisit after backtesting; they do not guarantee profitability.
+Odds profile bands (below 1.50, 1.50–2.50, above 2.50) are descriptive metadata only. They do not affect candidate ranking. The primary betting candidate is ranked by evidence status, EV and model probability. The separate `most_likely_outcome` field identifies the highest model probability, irrespective of odds or EV.
 
 
 ## Bookmaker-consistent pricing and timestamps
@@ -87,3 +82,10 @@ reconstructed exclusively from prior results and shrunk toward neutral.
 These adjustments improve feature construction but do not constitute model
 calibration or proof of betting profitability. The independent-Poisson
 probabilities remain experimental and VALUE_BET remains disabled.
+
+
+## Current bookmaker policy
+
+The automatic pre-match recommendation tool does not hard-code a bookmaker. It considers quotes returned by API-Football and selects the highest available price for each supported selection. Each quote retains its bookmaker identity. No-vig probabilities are calculated only from a complete market supplied by that same bookmaker; prices from different bookmakers are never combined to synthesize a market.
+
+A candidate can be `LEAN` only when both point-estimate EV is non-negative and no-vig edge is strictly positive. `VALUE_BET` additionally requires validated model status, an uncertainty lower bound, positive conservative edge, and the configured conservative EV threshold.

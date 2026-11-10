@@ -148,10 +148,14 @@ async def test_predict_match_bet_keeps_unvalidated_ev_as_lean_and_edge_is_explic
             "data": [{
                 "update": "2026-11-10T11:59:00+00:00",
                 "bookmakers": [{
-                    "name": "Book B",
+                    "name": "PARI",
                     "bets": [{
                         "name": "Match Winner",
-                        "values": [{"value": "Home", "odd": "2.00"}],
+                        "values": [
+                            {"value": "Home", "odd": "2.00"},
+                            {"value": "Draw", "odd": "3.20"},
+                            {"value": "Away", "odd": "3.80"},
+                        ],
                     }],
                 }],
             }],
@@ -163,11 +167,52 @@ async def test_predict_match_bet_keeps_unvalidated_ev_as_lean_and_edge_is_explic
     result = await predict_match_bet(123)
     pick = result["primary_pick"]
     assert pick["odds"] == 2.0
-    assert pick["bookmaker"] == "Book B"
+    assert pick["bookmaker"] == "PARI"
     assert pick["expected_value"] == 0.2
-    assert pick["no_vig_probability"] is None
-    assert pick["edge"] is None
+    assert pick["no_vig_probability"] is not None
+    assert pick["edge"] > 0
     assert pick["provider_updated_at"] == "2026-11-10T11:59:00+00:00"
     assert pick["odds_observed_at"] == "2026-11-10T12:00:00+00:00"
     assert pick["status"] == "LEAN"
     assert pick["status"] != "VALUE_BET"
+    assert result["most_likely_outcome"]["selection"] == "Home win"
+
+
+def test_pari_allowlist_excludes_other_bookmakers():
+    response = {
+        "success": True,
+        "data": [{
+            "bookmakers": [
+                {"name": "OtherBook", "bets": [{"name": "Match Winner", "values": [
+                    {"value": "Home", "odd": "1.90"},
+                    {"value": "Draw", "odd": "3.30"},
+                    {"value": "Away", "odd": "4.10"},
+                ]}]},
+                {"name": "PARI", "bets": [{"name": "Match Winner", "values": [
+                    {"value": "Home", "odd": "2.00"},
+                    {"value": "Draw", "odd": "3.20"},
+                    {"value": "Away", "odd": "3.80"},
+                ]}]},
+            ],
+        }],
+    }
+    prices = extract_best_prices(response, allowed_bookmakers={"PARI"})
+    assert prices["home_win"]["odds"] == 2.00
+    assert prices["home_win"]["bookmaker"] == "PARI"
+
+
+def test_pari_allowlist_rejects_names_that_only_start_with_pari():
+    response = {
+        "success": True,
+        "data": [{
+            "bookmakers": [{
+                "name": "PARI Exchange",
+                "bets": [{"name": "Match Winner", "values": [
+                    {"value": "Home", "odd": "2.00"},
+                    {"value": "Draw", "odd": "3.20"},
+                    {"value": "Away", "odd": "3.80"},
+                ]}],
+            }],
+        }],
+    }
+    assert extract_best_prices(response, allowed_bookmakers={"PARI"}) == {}
