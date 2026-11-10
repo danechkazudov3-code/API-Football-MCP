@@ -48,7 +48,7 @@ def test_same_day_results_do_not_leak_into_other_same_day_forecasts(monkeypatch)
 
     observed_home_matches = []
 
-    def fake_forecast(home_form, away_form, *, league_baseline, home_advantage):
+    def fake_forecast(home_form, away_form, *, home_team_rates=None, away_team_rates=None, league_baseline, home_advantage):
         observed_home_matches.append(home_form.get("matches", []))
         return {
             "available": True,
@@ -76,3 +76,21 @@ def test_same_day_results_do_not_leak_into_other_same_day_forecasts(monkeypatch)
     assert len(observed_home_matches) == 2
     assert all(len(rows) == 1 for rows in observed_home_matches)
     assert all(rows[0]["date"].startswith("2025-01-01") for rows in observed_home_matches)
+
+
+def test_season_team_rates_use_only_available_prior_venue_history():
+    from tools.backtesting import _season_team_rates
+
+    history = [
+        {"venue": "home", "scored": 2, "conceded": 1},
+        {"venue": "home", "scored": 0, "conceded": 2},
+        {"venue": "away", "scored": 1, "conceded": 1},
+        {"venue": "away", "scored": 3, "conceded": 0},
+    ]
+    rates = _season_team_rates(history)
+    assert rates["available"] is True
+    assert rates["scored_home"] == 1.0
+    assert rates["conceded_home"] == 1.5
+    assert rates["scored_away"] == 2.0
+    assert rates["conceded_away"] == 0.5
+    assert _season_team_rates(history[:2])["available"] is False
