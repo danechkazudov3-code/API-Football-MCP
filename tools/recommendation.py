@@ -49,10 +49,11 @@ def extract_best_prices(
     *,
     allowed_bookmakers: set[str] | None = None,
 ) -> dict[str, dict[str, Any]]:
-    """Extract prices and no-vig probabilities from complete single-book markets.
+    """Extract best prices; calculate no-vig only within a complete single-book market.
 
-    When an allowlist is supplied, only exact normalized bookmaker-name matches
-    are eligible. No-vig probabilities are never synthesized across books.
+    An optional allowlist can restrict providers, using exact normalized names.
+    By default all bookmakers returned by the odds provider are eligible.
+    No-vig probabilities are never synthesized across bookmakers.
     """
     best: dict[str, dict[str, Any]] = {}
     if not odds_response.get("success"):
@@ -147,8 +148,8 @@ async def predict_match_bet(fixture_id: int) -> dict[str, Any]:
         }
 
     prices_response = await api_request("/odds", {"fixture": fixture_id})
-    # MyAnalytics current execution policy: use PARI prices only; never silently substitute another book.
-    best_prices = extract_best_prices(prices_response, allowed_bookmakers={"PARI"})
+    # Use the best quotes returned by the configured odds provider; no bookmaker is hard-coded.
+    best_prices = extract_best_prices(prices_response)
     candidates = []
 
     for item in forecast.get("candidates") or []:
@@ -194,13 +195,14 @@ async def predict_match_bet(fixture_id: int) -> dict[str, Any]:
         "primary_pick": primary,
         "most_likely_outcome": most_likely,
         "candidates": candidates,
-        "odds_source": "API-Football; PARI only; no bookmaker substitution",
+        "odds_source": "API-Football; best returned bookmaker quotes; no hard-coded bookmaker",
         "odds_available": bool(best_prices),
         "odds_retrieved_at": prices_response.get("retrieved_at"),
         "odds_error": prices_response.get("error") if not prices_response.get("success") else None,
         "warning": (
             "Experimental Poisson baseline only; it has not been calibrated or backtested. "
-            "Positive EV plus positive PARI no-vig edge may be labelled LEAN; VALUE_BET remains disabled until validation."
+            "Positive EV plus positive same-bookmaker no-vig edge may be labelled LEAN; "
+            "VALUE_BET remains disabled until validation."
         ),
         "rate_limit_remaining": prices_response.get("rate_limit_remaining"),
     }
