@@ -199,3 +199,20 @@ def test_pari_allowlist_excludes_other_bookmakers():
     prices = extract_best_prices(response, allowed_bookmakers={"PARI"})
     assert prices["home_win"]["odds"] == 2.00
     assert prices["home_win"]["bookmaker"] == "PARI"
+
+
+def test_pari_allowlist_rejects_names_that_only_start_with_pari():
+    response = {
+        "success": True,
+        "data": [{
+            "bookmakers": [{
+                "name": "PARI Exchange",
+                "bets": [{"name": "Match Winner", "values": [
+                    {"value": "Home", "odd": "2.00"},
+                    {"value": "Draw", "odd": "3.20"},
+                    {"value": "Away", "odd": "3.80"},
+                ]}],
+            }],
+        }],
+    }
+    assert extract_best_prices(response, allowed_bookmakers={"PARI"}) == {}
