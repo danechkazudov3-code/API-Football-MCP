@@ -146,7 +146,7 @@ async def predict_match_bet(fixture_id: int) -> dict[str, Any]:
                 "over_2_5": "Over 2.5", "under_2_5": "Under 2.5",
                 "btts_yes": "Yes", "btts_no": "No",
             }.items() if label == candidate.get("selection") and (
-                (key in {"home_win", "draw", "away_win} and candidate.get("market") == "1X2")
+                (key in {"home_win", "draw", "away_win"} and candidate.get("market") == "1X2")
                 or (key in {"over_2_5", "under_2_5"} and candidate.get("market") == "Total goals 2.5")
                 or (key in {"btts_yes", "btts_no"} and candidate.get("market") == "Both teams to score")
             )),
