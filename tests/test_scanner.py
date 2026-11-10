@@ -270,3 +270,54 @@ def test_scanner_ranking_does_not_use_odds_profile_as_tiebreaker():
         key=_rank_key,
     )
     assert ranked[0] is higher_ev_high_variance
+
+
+@pytest.mark.asyncio
+async def test_fallback_applies_opponent_adjustment_and_exposes_model_inputs(monkeypatch):
+    import tools.scanner as scanner
+
+    async def fake_api(_endpoint, _params):
+        return {"success": False, "error": "API unavailable", "data": []}
+
+    form_home = {
+        "available": True, "matches_played": 2,
+        "average_goals_scored": 2.0, "average_goals_conceded": 1.0,
+        "matches": [
+            {"date": "2026-10-01", "opponent_id": "Strong", "scored": 2, "conceded": 1},
+            {"date": "2026-10-08", "opponent_id": "Weak", "scored": 1, "conceded": 2},
+        ],
+    }
+    form_away = {
+        "available": True, "matches_played": 2,
+        "average_goals_scored": 1.0, "average_goals_conceded": 1.0,
+        "matches": [
+            {"date": "2026-10-01", "opponent_id": "Weak", "scored": 1, "conceded": 1},
+            {"date": "2026-10-08", "opponent_id": "Strong", "scored": 1, "conceded": 1},
+        ],
+    }
+    async def fake_fallback(*_args, **_kwargs):
+        return {
+            "success": True, "source": "open-matchday", "fixtures_found_in_window": 1,
+            "fixtures": [{
+                "fixture": {"id": "test"},
+                "home_form": form_home, "away_form": form_away,
+                "home_venue_form": form_home, "away_venue_form": form_away,
+                "model_home_form": form_home, "model_away_form": form_away,
+                "opponent_strengths": {
+                    "Strong": {"attack_index": 1.5, "defence_index": 1.5},
+                    "Weak": {"attack_index": 0.7, "defence_index": 0.7},
+                },
+                "opponent_strengths_as_of": "2026-10-10",
+            }],
+        }
+
+    monkeypatch.setattr(scanner, "api_request", fake_api)
+    monkeypatch.setattr(scanner, "fetch_open_matchday_scan", fake_fallback)
+    result = await scanner.scan_best_bets(
+        scan_date="2026-11-20", days_ahead=1, max_fixtures=1
+    )
+    inputs = result["all_matches"][0]["model_inputs"]
+    assert inputs["opponent_adjustment_available"] is True
+    assert inputs["opponent_adjustment_as_of"] == "2026-10-10"
+    assert inputs["home"]["opponent_adjusted_matches"] == 2
+    assert inputs["home"]["average_goals_scored"] != form_home["average_goals_scored"]

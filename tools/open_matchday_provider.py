@@ -52,6 +52,7 @@ def _form(team: str, matches: list[dict[str, str]], venue: str | None = None) ->
         result = "W" if scored > conceded else "D" if scored == conceded else "L"
         selected.append({
             "date": row.get("date"), "opponent": row.get("away") if is_home else row.get("home"),
+            "opponent_id": row.get("away") if is_home else row.get("home"),
             "venue": "home" if is_home else "away", "score": f"{scored}-{conceded}",
             "result": result, "scored": scored, "conceded": conceded,
             "stats": {
@@ -96,8 +97,48 @@ def _form(team: str, matches: list[dict[str, str]], venue: str | None = None) ->
         "goals_conceded": sum(x["conceded"] for x in selected),
         "average_goals_scored": round(sum(x["scored"] for x in selected) / count, 2) if count else None,
         "average_goals_conceded": round(sum(x["conceded"] for x in selected) / count, 2) if count else None,
-        "matches": [{k: x[k] for k in ("date", "opponent", "venue", "score", "result")} for x in selected],
+        "matches": [{k: x[k] for k in ("date", "opponent", "opponent_id", "venue", "score", "result", "scored", "conceded")} for x in selected],
     }
+
+
+def _opponent_strengths(matches: list[dict[str, str]]) -> dict[str, dict[str, float]]:
+    """Build shrunk, league-relative team strengths using only completed prior results."""
+    totals: dict[str, dict[str, float]] = {}
+    total_goals = 0
+    match_count = 0
+    for row in matches:
+        try:
+            home_goals, away_goals = int(row["ft_home"]), int(row["ft_away"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        home, away = (row.get("home") or "").strip(), (row.get("away") or "").strip()
+        if not home or not away:
+            continue
+        for team, scored, conceded in (
+            (home, home_goals, away_goals), (away, away_goals, home_goals)
+        ):
+            item = totals.setdefault(team, {"scored": 0.0, "conceded": 0.0, "matches": 0.0})
+            item["scored"] += scored
+            item["conceded"] += conceded
+            item["matches"] += 1
+        total_goals += home_goals + away_goals
+        match_count += 1
+    if not match_count:
+        return {}
+    baseline = total_goals / (2.0 * match_count)
+    if baseline <= 0:
+        return {}
+    strengths = {}
+    for team, values in totals.items():
+        count = values["matches"]
+        shrink = count / (count + 5.0)
+        attack_rate = values["scored"] / count
+        defence_rate = values["conceded"] / count
+        strengths[team] = {
+            "attack_index": 1.0 + (attack_rate / baseline - 1.0) * shrink,
+            "defence_index": 1.0 + (defence_rate / baseline - 1.0) * shrink,
+        }
+    return strengths
 
 
 async def fetch_open_matchday_scan(
@@ -163,6 +204,7 @@ async def fetch_open_matchday_scan(
         home_venue, away_venue = _form(home, prior, "home"), _form(away, prior, "away")
         model_home = home_venue if home_venue["matches_played"] >= 3 else home_form
         model_away = away_venue if away_venue["matches_played"] >= 3 else away_form
+        opponent_strengths = _opponent_strengths(prior)
         reports.append({
             "fixture": {
                 "id": f"open-matchday:{league_id}:{kickoff}:{home}:{away}",
@@ -175,6 +217,8 @@ async def fetch_open_matchday_scan(
             "home_form": home_form, "away_form": away_form,
             "home_venue_form": home_venue, "away_venue_form": away_venue,
             "model_home_form": model_home, "model_away_form": model_away,
+            "opponent_strengths": opponent_strengths,
+            "opponent_strengths_as_of": kickoff,
         })
     return {
         "success": True, "source": SOURCE, "league": league_name,

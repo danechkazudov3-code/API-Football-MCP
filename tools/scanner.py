@@ -8,7 +8,7 @@ from api_client import api_request
 from server import mcp
 from tools.recommendation import predict_match_bet
 from tools.open_matchday_provider import fetch_open_matchday_scan
-from tools.poisson_model import forecast_from_recent_form
+from tools.poisson_model import forecast_from_recent_form, adjust_recent_form_for_opponents
 from tools.prediction_journal import record_scan_reports
 
 
@@ -35,9 +35,14 @@ def _format_fallback_result(
 ) -> dict[str, Any]:
     fallback_reports = []
     for entry in fallback.get("fixtures") or []:
-        forecast = forecast_from_recent_form(
-            entry["model_home_form"], entry["model_away_form"]
+        opponent_strengths = entry.get("opponent_strengths") or {}
+        model_home_form = adjust_recent_form_for_opponents(
+            entry["model_home_form"], opponent_strengths
         )
+        model_away_form = adjust_recent_form_for_opponents(
+            entry["model_away_form"], opponent_strengths
+        )
+        forecast = forecast_from_recent_form(model_home_form, model_away_form)
         forecast = dict(forecast)
         no_odds_reason = "No bookmaker odds are supplied by the fallback source; fair odds are model estimates only."
         if forecast.get("available"):
@@ -64,12 +69,21 @@ def _format_fallback_result(
                 for candidate in (forecast.get("candidates") or [])
             ],
             "forecast": forecast,
+            "model_inputs": {
+                "home": model_home_form,
+                "away": model_away_form,
+                "opponent_adjustment_as_of": entry.get("opponent_strengths_as_of"),
+                "opponent_adjustment_available": bool(
+                    model_home_form.get("opponent_adjustment_available")
+                    or model_away_form.get("opponent_adjustment_available")
+                ),
+            },
             "match_analysis": {
                 "recent_form": {"home": entry["home_form"], "away": entry["away_form"]},
                 "venue_form": {"home": entry["home_venue_form"], "away": entry["away_venue_form"]},
                 "match_statistics": {
-                    "home": (entry.get("model_home_form") or {}).get("statistics"),
-                    "away": (entry.get("model_away_form") or {}).get("statistics"),
+                    "home": (model_home_form or {}).get("statistics"),
+                    "away": (model_away_form or {}).get("statistics"),
                     "note": "Partial historical match statistics; no xG is supplied by Open-Matchday.",
                 },
                 "head_to_head": {"available": False, "reason": "Not supplied by fallback dataset."},

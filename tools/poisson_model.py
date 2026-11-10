@@ -146,11 +146,12 @@ def adjust_recent_form_for_opponents(
             continue
         if scored < 0 or conceded < 0:
             continue
+        raw_opponent_id = row.get("opponent_id")
         try:
-            opponent_id = int(row.get("opponent_id"))
+            opponent_id: Any = int(raw_opponent_id)
         except (TypeError, ValueError):
-            opponent_id = None
-        opponent = strengths.get(opponent_id) if opponent_id is not None else None
+            opponent_id = str(raw_opponent_id).strip() if raw_opponent_id is not None else None
+        opponent = strengths.get(opponent_id) if opponent_id not in (None, "") else None
         if opponent:
             defence_index = max(0.60, min(1.60, float(opponent.get("defence_index", 1.0))))
             attack_index = max(0.60, min(1.60, float(opponent.get("attack_index", 1.0))))
