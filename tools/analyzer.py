@@ -234,8 +234,10 @@ async def analyze_match(fixture_id: int) -> dict[str, Any]:
     # otherwise retain the larger all-venue sample rather than overfitting 1-2 games.
     home_venue = (home_form.get("venue_splits") or {}).get("home") or {}
     away_venue = (away_form.get("venue_splits") or {}).get("away") or {}
-    model_home_form = home_venue if home_venue.get("matches_played", 0) >= 3 else home_form
-    model_away_form = away_venue if away_venue.get("matches_played", 0) >= 3 else away_form
+    home_uses_venue = home_venue.get("matches_played", 0) >= 3
+    away_uses_venue = away_venue.get("matches_played", 0) >= 3
+    model_home_form = home_venue if home_uses_venue else home_form
+    model_away_form = away_venue if away_uses_venue else away_form
     opponent_strength_map = standings_strengths.get("teams") or {}
     model_home_form = adjust_recent_form_for_opponents(model_home_form, opponent_strength_map)
     model_away_form = adjust_recent_form_for_opponents(model_away_form, opponent_strength_map)
@@ -277,8 +279,8 @@ async def analyze_match(fixture_id: int) -> dict[str, Any]:
             "home": home_form,
             "away": away_form,
             "model_inputs": {
-                "home": "recent_home_matches" if model_home_form is home_venue else "all_recent_matches",
-                "away": "recent_away_matches" if model_away_form.get("matches_played", 0) >= 3 and away_venue.get("matches_played", 0) >= 3 else "all_recent_matches",
+                "home": "recent_home_matches" if home_uses_venue else "all_recent_matches",
+                "away": "recent_away_matches" if away_uses_venue else "all_recent_matches",
                 "opponent_adjustment": standings_strengths.get("available", False),
                 "home_opponent_adjusted_matches": model_home_form.get("opponent_adjusted_matches", 0),
                 "away_opponent_adjusted_matches": model_away_form.get("opponent_adjusted_matches", 0),
