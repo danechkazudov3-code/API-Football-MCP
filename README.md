@@ -5,7 +5,7 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that 
 ## Features
 
 - 48 MCP tools covering teams, players, fixtures, standings, transfers, odds, automatic pre-match picks, live picks, and historical backtesting
-- Streamable HTTP, SSE, and stdio transports
+- Authenticated Streamable HTTP and local stdio transports
 - Async HTTP client with rate-limit tracking and error handling
 - Docker support for easy deployment
 
@@ -34,7 +34,9 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that 
    Edit `.env` and add your API-Football key:
    ```
    API_FOOTBALL_KEY=your_api_key_here
+   MCP_AUTH_TOKEN=replace_with_a_long_random_secret
    ```
+   Generate a unique high-entropy token for `MCP_AUTH_TOKEN`. Do not commit it or share it publicly. Remote Streamable HTTP requests must send it as a Bearer token.
 
 ## Running the Server
 
@@ -45,14 +47,11 @@ python server.py
 # Stdio transport (for direct MCP client piping)
 python server.py --transport stdio
 
-# SSE transport on a custom port
-python server.py --transport sse --port 9000
-
 # Custom host and port
 python server.py --host 127.0.0.1 --port 3000
 ```
 
-The MCP endpoint will be available at `http://localhost:8111/mcp`.
+The MCP endpoint will be available at `http://localhost:8111/mcp`. It rejects requests without a valid `Authorization: Bearer ...` header. Local stdio connections do not use HTTP bearer authentication; their security boundary is the local process.
 
 ### Docker
 
@@ -78,7 +77,10 @@ To connect this server to an MCP client, add it to your MCP config:
   "mcpServers": {
     "api-football": {
       "type": "streamable-http",
-      "url": "http://localhost:8111/mcp"
+      "url": "http://localhost:8111/mcp",
+      "headers": {
+        "Authorization": "Bearer replace_with_the_same_MCP_AUTH_TOKEN"
+      }
     }
   }
 }

@@ -42,9 +42,9 @@ def main():
     parser = argparse.ArgumentParser(description="API-Football MCP Server")
     parser.add_argument(
         "--transport",
-        choices=["stdio", "sse", "streamable-http"],
+        choices=["stdio", "streamable-http"],
         default="streamable-http",
-        help="Transport protocol (default: streamable-http)",
+        help="Transport protocol (stdio or authenticated streamable-http)",
     )
     parser.add_argument("--host", default="0.0.0.0", help="Host to bind to (default: 0.0.0.0)")
     parser.add_argument("--port", type=int, default=8111, help="Port to bind to (default: 8111)")
@@ -56,7 +56,19 @@ def main():
     register_tools()
 
     print(f"Starting API-Football MCP Server on {args.host}:{args.port} ({args.transport})")
-    mcp.run(transport=args.transport)
+    if args.transport == "streamable-http":
+        # Wrap the Starlette app with raw ASGI middleware. BaseHTTPMiddleware is
+        # intentionally avoided because MCP streaming responses require ASGI passthrough.
+        import uvicorn
+
+        from mcp_auth import MCPBearerAuthMiddleware
+
+        app = MCPBearerAuthMiddleware(mcp.streamable_http_app(host=args.host))
+        uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+    else:
+        # stdio remains protected by the local process boundary. The legacy
+        # unauthenticated SSE transport is deliberately not exposed.
+        mcp.run(transport="stdio")
 
 
 if __name__ == "__main__":
