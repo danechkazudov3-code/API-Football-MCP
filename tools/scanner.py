@@ -12,13 +12,11 @@ from tools.poisson_model import forecast_from_recent_form
 from tools.prediction_journal import record_scan_reports
 
 
-def _rank_key(entry: dict[str, Any]) -> tuple[int, int, float, float]:
+def _rank_key(entry: dict[str, Any]) -> tuple[int, float, float]:
+    """Rank by recommendation status, then EV and probability—not odds bands."""
     pick = entry.get("primary_pick") or {}
     status = {"VALUE_BET": 0, "LEAN": 1, "WATCHLIST": 2, "NO_BET": 3,
               "INSUFFICIENT_DATA": 4}.get(pick.get("status"), 5)
-    odds_profile = {"PREFERRED": 0, "LOW_ODDS": 1, "HIGH_VARIANCE": 2}.get(
-        pick.get("odds_profile"), 3
-    )
     try:
         ev = float(pick.get("conservative_expected_value", pick.get("expected_value")))
     except (TypeError, ValueError):
@@ -27,7 +25,7 @@ def _rank_key(entry: dict[str, Any]) -> tuple[int, int, float, float]:
         probability = float(pick.get("model_probability"))
     except (TypeError, ValueError):
         probability = float("-inf")
-    return status, odds_profile, -ev, -probability
+    return status, -ev, -probability
 
 
 
