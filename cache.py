@@ -71,6 +71,6 @@ def cache_ttl(endpoint: str, params: dict[str, Any] | None = None) -> int:
         "/odds/bookmakers", "/odds/bets",
     }:
         return 86400
-    if path == "/standings":
+    if path in {"/standings", "/teams/statistics"}:
         return 21600
     return 0

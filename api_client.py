@@ -2,7 +2,7 @@
 
 import json
 import os
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Any
 
 import httpx
@@ -73,6 +73,9 @@ async def api_request(endpoint: str, params: dict[str, Any] | None = None) -> di
     except httpx.HTTPError as e:
         return _error_response(f"HTTP error: {e}")
 
+    # Preserve the upstream response time; cached responses retain this original timestamp.
+    retrieved_at = datetime.now(timezone.utc).isoformat()
+
     # Track rate limits from headers
     remaining = response.headers.get("x-ratelimit-requests-remaining")
     if remaining is not None:
@@ -113,6 +116,7 @@ async def api_request(endpoint: str, params: dict[str, Any] | None = None) -> di
         "data": data.get("response", []),
         "paging": data.get("paging", {}),
         "rate_limit_remaining": _rate_limit_remaining,
+        "retrieved_at": retrieved_at,
     }
     if ttl:
         _response_cache.set(cache_key, result, ttl)

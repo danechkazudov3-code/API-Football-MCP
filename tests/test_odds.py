@@ -107,10 +107,25 @@ async def test_get_odds_requires_filter():
 
 
 @pytest.mark.asyncio
-async def test_get_live_odds(mock_api):
-    mock_api.return_value = mock_httpx_response(data=[])
+async def test_get_live_odds_preserves_all_bookmakers(mock_api):
+    mock_api.return_value = mock_httpx_response(data=[{
+        "fixture": {"id": 1001, "status": {"long": "Second Half", "elapsed": 67}},
+        "league": {"id": 39, "name": "Premier League"},
+        "bookmakers": [
+            {"id": 8, "name": "Book A", "bets": [
+                {"id": 1, "name": "Match Winner", "values": [{"value": "Home", "odd": "1.85"}]}
+            ]},
+            {"id": 9, "name": "Book B", "bets": [
+                {"id": 1, "name": "Match Winner", "values": [{"value": "Home", "odd": "1.92"}]}
+            ]},
+        ],
+    }])
     result = await get_live_odds(fixture=1001)
     assert result["success"] is True
+    odds = result["data"][0]["odds"]
+    assert len(odds) == 2
+    assert {item["bookmaker"] for item in odds} == {"Book A", "Book B"}
+    assert odds[1]["bookmaker_id"] == 9
 
 
 @pytest.mark.asyncio
