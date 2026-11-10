@@ -103,3 +103,44 @@ For NO_BET, still display the best candidate and explain why it is not recommend
 The existing tools/analyzer.py collects fixture information and recent five-match form only. It explicitly states probability and betting-value calculations are not implemented. This specification does not change that fact.
 
 The first implementation milestone is tested deterministic calculation modules and a stable output schema. Next comes the baseline probability model, followed by historical validation. The project must not claim a mathematically validated betting recommendation until those stages are complete.
+
+## 8. Implemented pre-match model baseline — version 3
+
+The current branch implements an opponent-adjusted, time-weighted independent
+Poisson baseline. It is still experimental and is not approved for VALUE_BET.
+
+Feature construction:
+- Up to ten latest completed matches for each team.
+- Prefer home-only recent history for the home side and away-only history for
+  the away side when at least three venue-specific matches exist; otherwise use
+  the larger all-venue sample.
+- Exponentially decay match influence with a four-match half-life.
+- For upcoming fixtures, adjust recent goals using opponent attack/defence
+  indices derived from the current season standings. Opponent multipliers are
+  bounded to 0.60–1.60; unknown opponents receive a neutral multiplier.
+- When season venue rates and league baseline are available, blend those rates
+  with adjusted recent form. The recent-form blend weight grows with sample
+  size and is capped at 35%.
+- If season aggregates are unavailable, shrink recent rates toward the league
+  prior rather than trusting a small sample at full strength.
+- Convert the two goal intensities into a normalized independent-Poisson score
+  matrix, then derive supported 1X2, Over/Under 2.5 and BTTS probabilities.
+
+Historical validation uses a separate leakage-safe feature path:
+- Team histories, venue splits, league scoring baseline and opponent strength
+  are built only from fixtures completed before the forecast date.
+- Fixtures on the same calendar date are all forecast before any result from
+  that date is added to history.
+- Historical opponent indices are shrunk toward neutral according to sample
+  size; the current standings snapshot is never used in walk-forward history.
+
+Known limitations:
+- Current standings are a present-time snapshot for live prematch analysis and
+  must not be retroactively used to validate historical predictions.
+- No xG, player-level lineup adjustment, rest/travel model or calibrated
+  uncertainty interval is currently implemented.
+- Home advantage, shrinkage and recent/season blend weights are provisional.
+- Independent Poisson assumes conditional independence between team goals;
+  Dixon-Coles or another low-score correction requires separate fitting.
+- Backtest metrics remain probability-quality metrics only. No ROI/CLV claim is
+  possible without reliable timestamped historical prices.
