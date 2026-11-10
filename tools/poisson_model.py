@@ -332,13 +332,13 @@ def forecast_from_recent_form(
             "model_probability": round(probability, 6),
             "fair_odds": round(1.0 / probability, 3) if probability > 0 else None,
             "odds": None, "status": "WATCHLIST",
-            "reason": "Experimental Poisson baseline; bookmaker price and out-of-sample validation are not yet connected.",
+            "reason": "Opponent-adjusted, time-weighted Poisson forecast; probabilities remain uncalibrated and unvalidated.",
         })
     candidates.sort(key=lambda item: item["model_probability"], reverse=True)
     return {
-        "available": True, "model": "experimental_poisson_baseline_v2",
+        "available": True, "model": "opponent_adjusted_time_weighted_poisson_v3",
         "validated": False, "goal_rates": rates, "score_matrix": score_matrix,
         "market_probabilities": {k: round(v, 6) for k, v in markets.items()},
         "primary_forecast": candidates[0], "candidates": candidates,
-        "warning": "Experimental probabilities; not calibrated or backtested.",
+        "warning": "Experimental probabilities; not calibrated or validated on time-safe out-of-sample data.",
     }
