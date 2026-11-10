@@ -212,7 +212,7 @@ Changes on the PR branch:
 - Candidate quote fields include bookmaker, odds source, provider_updated_at and odds_observed_at.
 
 Validation actually completed on 2026-11-10:
-- GitHub Actions run 42745573085: unit tests passed.
+- GitHub Actions run 42745573085: 164 unit tests passed in 1.25 seconds.
 - Python compileall syntax check passed.
 - No live API request or Render deployment was performed.
 - PR #2 is draft/open and not merged. Render remains configured to deploy feature/prediction-engine, so these changes are not in the live service.
