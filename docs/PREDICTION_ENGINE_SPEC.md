@@ -40,6 +40,8 @@ When no reliable probability is available, show a qualitative forecast/watchlist
 
 For decimal odds O and estimated probability p:
 - raw implied probability = 1 / O;
+- for a complete bookmaker market, no-vig probability = (1 / O_selection) / Σ(1 / O_outcome) using outcomes from that same bookmaker only;
+- edge = model probability − no-vig market probability;
 - fair odds = 1 / p;
 - expected value per unit stake = p * O - 1;
 - break-even probability = 1 / O.
