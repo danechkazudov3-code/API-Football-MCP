@@ -40,6 +40,6 @@ For exact code changes, commits, and test runs, consult Git history and GitHub A
 - Added Edge = model probability − no-vig market probability.
 - Preserved API response retrieval timestamp separately from the provider odds update timestamp, including cached-response semantics.
 - Added unit tests for bookmaker consistency, incomplete markets, Edge and timestamps.
-- GitHub Actions run 42745573085 passed unit tests and Python syntax compilation.
+- GitHub Actions run 42745573085 passed all 164 unit tests (1.25 seconds) and Python syntax compilation.
 - Opened draft PR #2 targeting feature/prediction-engine. It is not merged; Render was not deployed.
 - Model validation remains false and VALUE_BET remains disabled.
