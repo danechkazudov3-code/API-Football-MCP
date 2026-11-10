@@ -13,9 +13,10 @@ def test_candidate_without_probability_is_visible_but_not_priced():
 def test_positive_ev_without_validated_model_is_lean():
     result = evaluate_candidate({
         "market": "1X2", "selection": "Home", "odds": 2.2,
-        "model_probability": 0.50,
+        "model_probability": 0.50, "no_vig_probability": 0.45,
     })
     assert result["expected_value"] == 0.1
+    assert result["edge"] == 0.05
     assert result["status"] == "LEAN"
 
 
@@ -32,6 +33,7 @@ def test_value_requires_validated_model_and_conservative_edge():
     candidate = {
         "market": "Totals", "selection": "Over 2.5", "odds": 2.2,
         "model_probability": 0.52, "probability_lower_bound": 0.49,
+        "no_vig_probability": 0.45,
     }
     result = evaluate_candidate(candidate, model_validated=True, min_expected_value=0.05)
     assert result["status"] == "VALUE_BET"
@@ -40,7 +42,7 @@ def test_value_requires_validated_model_and_conservative_edge():
 def test_unvalidated_or_missing_uncertainty_never_becomes_value():
     candidate = {
         "market": "BTTS", "selection": "Yes", "odds": 2.0,
-        "model_probability": 0.60,
+        "model_probability": 0.60, "no_vig_probability": 0.50,
     }
     result = evaluate_candidate(candidate, model_validated=True)
     assert result["status"] == "LEAN"
@@ -73,3 +75,23 @@ def test_edge_is_unavailable_when_bookmaker_market_is_incomplete():
         "model_probability": 0.50, "no_vig_probability": None,
     })
     assert result["edge"] is None
+
+
+def test_positive_ev_without_no_vig_edge_is_insufficient_data():
+    result = evaluate_candidate({
+        "market": "1X2", "selection": "Home", "odds": 2.2,
+        "model_probability": 0.60,
+    })
+    assert result["expected_value"] > 0
+    assert result["edge"] is None
+    assert result["status"] == "INSUFFICIENT_DATA"
+
+
+def test_positive_ev_with_non_positive_edge_is_no_bet():
+    result = evaluate_candidate({
+        "market": "1X2", "selection": "Home", "odds": 2.2,
+        "model_probability": 0.50, "no_vig_probability": 0.51,
+    })
+    assert result["expected_value"] > 0
+    assert result["edge"] < 0
+    assert result["status"] == "NO_BET"
