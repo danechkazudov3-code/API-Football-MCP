@@ -43,6 +43,27 @@ def _form(
     }
 
 
+def _season_team_rates(history: list[dict[str, Any]]) -> dict[str, Any]:
+    """Build season-to-date venue rates using only matches already in history."""
+    home_rows = [row for row in history if row.get("venue") == "home"]
+    away_rows = [row for row in history if row.get("venue") == "away"]
+    if not home_rows or not away_rows:
+        return {"available": False, "home_matches": len(home_rows), "away_matches": len(away_rows)}
+
+    def average(rows: list[dict[str, Any]], key: str) -> float:
+        return sum(float(row[key]) for row in rows) / len(rows)
+
+    return {
+        "available": True,
+        "scored_home": average(home_rows, "scored"),
+        "conceded_home": average(home_rows, "conceded"),
+        "scored_away": average(away_rows, "scored"),
+        "conceded_away": average(away_rows, "conceded"),
+        "home_matches": len(home_rows),
+        "away_matches": len(away_rows),
+    }
+
+
 def _historical_opponent_strengths(
     team_history: dict[tuple[str, int], list[dict[str, Any]]],
     league_id: str,
@@ -124,8 +145,12 @@ def run_walk_forward_backtest(
                 away_form = adjust_recent_form_for_opponents(
                     _form(away_source, "away", history_window), strengths
                 )
+                home_season_rates = _season_team_rates(home_hist)
+                away_season_rates = _season_team_rates(away_hist)
                 forecast = forecast_from_recent_form(
                     home_form, away_form,
+                    home_team_rates=home_season_rates,
+                    away_team_rates=away_season_rates,
                     league_baseline=league_baseline,
                     home_advantage=home_advantage,
                 )
@@ -136,6 +161,9 @@ def run_walk_forward_backtest(
                         "fixture_id": (item.get("fixture") or {}).get("id"),
                         "date": date_value, "league_id": league_id,
                         "probabilities": probabilities,
+                        "model_method": forecast.get("method") or (forecast.get("goal_rates") or {}).get("method"),
+                        "goal_rates": forecast.get("goal_rates"),
+                        "season_rates_available": bool(home_season_rates.get("available") and away_season_rates.get("available")),
                         "actual_result": actual_result,
                         "actual_over_2_5": hg + ag >= 3,
                         "actual_score": [hg, ag],
