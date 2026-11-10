@@ -61,6 +61,8 @@ def test_summarize_team_form_counts_results_and_orders_matches():
     assert (summary["goals_scored"], summary["goals_conceded"]) == (3, 2)
     assert [match["date"] for match in summary["matches"]] == ["2026-11-01", "2026-11-02", "2026-11-03"]
     assert summary["venue_splits"]["home"]["available"] is True
+    assert summary["venue_splits"]["home"]["matches"][0]["opponent_id"] == 98
+    assert summary["venue_splits"]["home"]["matches"][0]["scored"] == 1
     assert summary["venue_splits"]["away"]["matches_played"] == 0
 
 
