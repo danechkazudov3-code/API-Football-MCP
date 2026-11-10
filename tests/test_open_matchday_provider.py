@@ -60,3 +60,25 @@ def test_open_matchday_form_summarizes_partial_match_statistics_without_zero_fil
     }
     assert form["statistics"]["shots_on_target"]["matches_sampled"] == 1
     assert form["statistics_note"].startswith("Averages use only matches")
+
+
+def test_form_preserves_opponent_identity_and_goal_counts_for_model():
+    rows = [{
+        "date": "2026-10-01", "home": "Club A", "away": "Club B",
+        "ft_home": "2", "ft_away": "1",
+    }]
+    form = _form("Club A", rows)
+    assert form["matches"][0]["opponent_id"] == "Club B"
+    assert form["matches"][0]["scored"] == 2
+    assert form["matches"][0]["conceded"] == 1
+
+
+def test_opponent_strengths_use_only_supplied_completed_results():
+    from tools.open_matchday_provider import _opponent_strengths
+
+    strengths = _opponent_strengths([
+        {"home": "Strong", "away": "Weak", "ft_home": "3", "ft_away": "0"},
+        {"home": "Strong", "away": "Average", "ft_home": "2", "ft_away": "1"},
+    ])
+    assert set(strengths) == {"Strong", "Weak", "Average"}
+    assert strengths["Strong"]["attack_index"] > strengths["Weak"]["attack_index"]
