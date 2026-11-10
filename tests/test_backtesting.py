@@ -1,13 +1,14 @@
 from tools.backtesting import run_walk_forward_backtest
 
 
-def _match(fid, day, home, away, hg, ag):
+def _match(fid, day, home, away, hg, ag, historical_odds=None):
     return {
         "fixture": {"id": fid, "date": f"2025-01-{day:02d}T15:00:00+00:00",
                     "status": {"short": "FT"}},
         "league": {"id": 39},
         "teams": {"home": {"id": home}, "away": {"id": away}},
         "goals": {"home": hg, "away": ag},
+        "historical_odds": historical_odds,
     }
 
 
@@ -94,3 +95,24 @@ def test_season_team_rates_use_only_available_prior_venue_history():
     assert rates["scored_away"] == 2.0
     assert rates["conceded_away"] == 0.5
     assert _season_team_rates(history[:2])["available"] is False
+
+
+def test_backtest_compares_model_with_same_match_no_vig_market():
+    fixtures = [
+        _match(1, 1, 1, 2, 1, 0),
+        _match(2, 2, 1, 2, 2, 1, {
+            "home": 2.0, "draw": 3.0, "away": 4.0,
+            "source": "Football-Data.co.uk avg_closing odds",
+            "odds_timing": "closing",
+        }),
+    ]
+    report = run_walk_forward_backtest(fixtures, min_history=1)
+    comparison = report["market_comparison"]
+    assert comparison["matches_compared"] == 1
+    assert comparison["odds_coverage"] == "1/1"
+    assert comparison["odds_source_counts"] == {
+        "Football-Data.co.uk avg_closing odds": 1
+    }
+    assert comparison["odds_timing_counts"] == {"closing": 1}
+    assert report["odds_coverage_rate"] == 1.0
+    assert comparison["market_no_vig_log_loss"] > 0
