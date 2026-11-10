@@ -2,6 +2,7 @@ import pytest
 from tools.poisson_model import (
     build_score_matrix, derive_market_probabilities, estimate_goal_rates,
     forecast_from_recent_form, extract_team_rates, extract_league_goal_baseline,
+    extract_standings_team_strengths, adjust_recent_form_for_opponents,
 )
 
 
@@ -13,7 +14,7 @@ def _form(scored, conceded, count=5):
 def test_recent_form_fallback_is_shrunk_and_home_adjusted():
     result = estimate_goal_rates(_form(2.0, 1.0), _form(1.0, 2.0))
     assert result["available"] is True
-    assert result["method"] == "shrunk_recent_form_with_home_advantage"
+    assert result["method"] == "opponent_adjusted_time_weighted_recent_form_fallback"
     assert result["lambda_home"] > result["lambda_away"]
     assert result["home_advantage"] == 1.08
 
@@ -27,9 +28,14 @@ def test_league_normalized_rates_use_venue_splits_and_opponent_defence():
                                  home_team_rates=home, away_team_rates=away,
                                  league_baseline=1.35, home_advantage=1.08)
     assert result["available"] is True
-    assert result["method"] == "league_normalized_venue_attack_defence"
-    assert result["lambda_home"] == pytest.approx(2.0 / 1.35 * 1.6 * 1.08 * 1.35 / 1.35)
-    assert result["lambda_away"] == pytest.approx(1.2 * 0.8 / (1.35 * 1.08), abs=1e-4)
+    assert result["method"] == "venue_season_rates_blended_with_opponent_adjusted_recent_form"
+    season_home = 2.0 * 1.6 / 1.35 * 1.08
+    recent_home = (1.5 + 1.4) / 2 * 1.08
+    season_away = 1.2 * 0.8 / 1.35 / 1.08
+    recent_away = (1.2 + 1.0) / 2 / 1.08
+    assert result["lambda_home"] == pytest.approx(0.825 * season_home + 0.175 * recent_home, abs=1e-4)
+    assert result["lambda_away"] == pytest.approx(0.825 * season_away + 0.175 * recent_away, abs=1e-4)
+    assert result["recent_form_weight"] == pytest.approx(0.175)
 
 
 def test_extract_team_rates_from_api_football_shape():
@@ -80,3 +86,39 @@ def test_forecast_shows_candidates_but_does_not_claim_value():
     assert len(result["candidates"]) == 7
     assert result["primary_forecast"]["status"] == "WATCHLIST"
     assert result["primary_forecast"]["odds"] is None
+
+
+
+def test_extract_standings_team_strengths_creates_attack_and_defence_indices():
+    result = extract_standings_team_strengths({"success": True, "data": [{
+        "league": {"standings": [[
+            {"team": {"id": 10}, "all": {"played": 10, "goals": {"for": 20, "against": 10}}},
+            {"team": {"id": 20}, "all": {"played": 10, "goals": {"for": 10, "against": 20}}},
+        ]]}
+    }]})
+    assert result["available"] is True
+    assert result["league_baseline"] == pytest.approx(1.5)
+    assert result["teams"][10]["attack_index"] == pytest.approx(20 / 10 / 1.5)
+    assert result["teams"][20]["defence_index"] == pytest.approx(20 / 10 / 1.5)
+
+
+def test_recent_form_is_recency_weighted_and_adjusted_for_opponent_strength():
+    form = {
+        "available": True, "matches_played": 2,
+        "matches": [
+            {"date": "2026-10-01", "opponent_id": 1, "scored": 2, "conceded": 1},
+            {"date": "2026-10-08", "opponent_id": 2, "scored": 1, "conceded": 2},
+        ],
+    }
+    strengths = {
+        1: {"attack_index": 0.5, "defence_index": 2.0},
+        2: {"attack_index": 2.0, "defence_index": 0.5},
+    }
+    result = adjust_recent_form_for_opponents(form, strengths)
+    older_weight = 0.5 ** (1 / 4)
+    expected_scored = (1.0 + 2.0 * older_weight) / (1 + older_weight)
+    expected_conceded = (1.0 + 2.0 * older_weight) / (1 + older_weight)
+    assert result["average_goals_scored"] == pytest.approx(expected_scored, abs=1e-4)
+    assert result["average_goals_conceded"] == pytest.approx(expected_conceded, abs=1e-4)
+    assert result["opponent_adjusted_matches"] == 2
+    assert result["neutral_opponent_matches"] == 0
