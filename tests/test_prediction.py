@@ -57,3 +57,19 @@ def test_selector_does_not_hide_no_bet_candidates():
 
 def test_selector_returns_none_for_empty_input():
     assert select_primary_candidate([]) is None
+
+
+def test_edge_is_model_probability_minus_no_vig_market_probability():
+    result = evaluate_candidate({
+        "market": "1X2", "selection": "Home", "odds": 2.2,
+        "model_probability": 0.50, "no_vig_probability": 0.46,
+    })
+    assert result["edge"] == 0.04
+
+
+def test_edge_is_unavailable_when_bookmaker_market_is_incomplete():
+    result = evaluate_candidate({
+        "market": "1X2", "selection": "Home", "odds": 2.2,
+        "model_probability": 0.50, "no_vig_probability": None,
+    })
+    assert result["edge"] is None
