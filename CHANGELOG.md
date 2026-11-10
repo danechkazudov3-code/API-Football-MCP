@@ -20,3 +20,12 @@ This is a curated project decision/change log, not a complete Git commit history
 - Initial chronological walk-forward probability-quality evaluation was run; it did not evaluate profitability and did not validate the model.
 
 For exact code changes, commits, and test runs, consult Git history and GitHub Actions. Do not infer missing dates or commit IDs from this summary.
+
+## 2026-11-10 — Static source-code audit
+- Reviewed the prematch evaluator, odds extraction, analyzer, scanner, Poisson model, live model/workflow, backtest, journal, providers, and tool imports on feature/prediction-engine.
+- Confirmed that current evaluator uses raw implied probability (1 / odds) and point-estimate EV (p * odds - 1); no no-vig calculation or explicit Edge calculation is present in this path.
+- Confirmed that odds extraction keeps the best price per selection across bookmakers and drops provider quote timestamps.
+- Confirmed that the live model is a separate heuristic remaining-time Poisson model using shots, shots on target, red cards and elapsed time; it is unvalidated and not historically backtested.
+- Confirmed scanner attempts journal recording, but no path configured means recorded: 0; journal remains disabled.
+- Read relevant tests but did not execute them. Render live state and the 53-tool live inventory were not re-verified.
+- No application code or Render configuration was changed.
