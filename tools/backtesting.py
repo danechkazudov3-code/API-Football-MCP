@@ -43,6 +43,27 @@ def _form(
     }
 
 
+def _season_team_rates(history: list[dict[str, Any]]) -> dict[str, Any]:
+    """Build season-to-date venue rates using only matches already in history."""
+    home_rows = [row for row in history if row.get("venue") == "home"]
+    away_rows = [row for row in history if row.get("venue") == "away"]
+    if not home_rows or not away_rows:
+        return {"available": False, "home_matches": len(home_rows), "away_matches": len(away_rows)}
+
+    def average(rows: list[dict[str, Any]], key: str) -> float:
+        return sum(float(row[key]) for row in rows) / len(rows)
+
+    return {
+        "available": True,
+        "scored_home": average(home_rows, "scored"),
+        "conceded_home": average(home_rows, "conceded"),
+        "scored_away": average(away_rows, "scored"),
+        "conceded_away": average(away_rows, "conceded"),
+        "home_matches": len(home_rows),
+        "away_matches": len(away_rows),
+    }
+
+
 def _historical_opponent_strengths(
     team_history: dict[tuple[str, int], list[dict[str, Any]]],
     league_id: str,
@@ -62,6 +83,25 @@ def _historical_opponent_strengths(
             "defence_index": 1.0 + (defence_rate / league_baseline - 1.0) * shrink,
         }
     return strengths
+
+
+def _no_vig_1x2(odds: dict[str, Any] | None) -> dict[str, float] | None:
+    """Normalize a complete same-source 1X2 price triplet to no-vig probabilities."""
+    if not odds:
+        return None
+    try:
+        decimal_odds = {key: float(odds[key]) for key in ("home", "draw", "away")}
+    except (KeyError, TypeError, ValueError):
+        return None
+    if not all(math.isfinite(value) and value > 1.0 for value in decimal_odds.values()):
+        return None
+    inverse = {key: 1.0 / value for key, value in decimal_odds.items()}
+    if not all(math.isfinite(value) and value > 0 for value in inverse.values()):
+        return None
+    overround = sum(inverse.values())
+    if overround <= 0:
+        return None
+    return {key: value / overround for key, value in inverse.items()}
 
 
 def _safe_log(value: float) -> float:
@@ -114,28 +154,44 @@ def run_walk_forward_backtest(
                 total_goals = sum(h + a for h, a in league_hist)
                 league_baseline = total_goals / (2 * len(league_hist))
                 strengths = _historical_opponent_strengths(team_history, league_id, league_baseline)
-                home_venue = [row for row in home_hist if row.get("venue") == "home"]
-                away_venue = [row for row in away_hist if row.get("venue") == "away"]
-                home_source = home_venue if len(home_venue) >= 3 else home_hist
-                away_source = away_venue if len(away_venue) >= 3 else away_hist
+                # Mirror the live analyzer: fetch the last N matches first, then
+                # choose a venue split only when that recent window has >=3 games.
+                home_recent = home_hist[-history_window:]
+                away_recent = away_hist[-history_window:]
+                home_venue = [row for row in home_recent if row.get("venue") == "home"]
+                away_venue = [row for row in away_recent if row.get("venue") == "away"]
+                home_source = home_venue if len(home_venue) >= 3 else home_recent
+                away_source = away_venue if len(away_venue) >= 3 else away_recent
                 home_form = adjust_recent_form_for_opponents(
                     _form(home_source, "home", history_window), strengths
                 )
                 away_form = adjust_recent_form_for_opponents(
                     _form(away_source, "away", history_window), strengths
                 )
+                home_season_rates = _season_team_rates(home_hist)
+                away_season_rates = _season_team_rates(away_hist)
                 forecast = forecast_from_recent_form(
                     home_form, away_form,
+                    home_team_rates=home_season_rates,
+                    away_team_rates=away_season_rates,
                     league_baseline=league_baseline,
                     home_advantage=home_advantage,
                 )
                 if forecast.get("available"):
                     probabilities = forecast["market_probabilities"]
                     actual_result = "home_win" if hg > ag else "away_win" if hg < ag else "draw"
+                    historical_odds = item.get("historical_odds") or {}
+                    market_probabilities = _no_vig_1x2(historical_odds)
                     predictions.append({
                         "fixture_id": (item.get("fixture") or {}).get("id"),
                         "date": date_value, "league_id": league_id,
                         "probabilities": probabilities,
+                        "market_probabilities": market_probabilities,
+                        "historical_odds_source": historical_odds.get("source"),
+                        "historical_odds_timing": historical_odds.get("odds_timing"),
+                        "model_method": forecast.get("method") or (forecast.get("goal_rates") or {}).get("method"),
+                        "goal_rates": forecast.get("goal_rates"),
+                        "season_rates_available": bool(home_season_rates.get("available") and away_season_rates.get("available")),
                         "actual_result": actual_result,
                         "actual_over_2_5": hg + ag >= 3,
                         "actual_score": [hg, ag],
@@ -184,6 +240,56 @@ def run_walk_forward_backtest(
         brier_over.append((p_over - y_over) ** 2)
 
     n = len(predictions)
+    market_rows = [row for row in predictions if row.get("market_probabilities")]
+    market_comparison = None
+    if market_rows:
+        model_market_ll = []
+        closing_market_ll = []
+        model_market_brier = []
+        closing_market_brier = []
+        for row in market_rows:
+            model_probs = row["probabilities"]
+            market_probs = row["market_probabilities"]
+            actual = row["actual_result"]
+            model_market_ll.append(-_safe_log(model_probs[actual]))
+            market_actual_key = {"home_win": "home", "draw": "draw", "away_win": "away"}[actual]
+            closing_market_ll.append(-_safe_log(market_probs[market_actual_key]))
+            model_market_brier.append(sum(
+                (model_probs[key] - (1.0 if key == actual else 0.0)) ** 2
+                for key in ("home_win", "draw", "away_win")
+            ))
+            market_outcome_keys = {
+                "home": "home_win", "draw": "draw", "away": "away_win",
+            }
+            closing_market_brier.append(sum(
+                (market_probs[key] - (1.0 if market_outcome_keys[key] == actual else 0.0)) ** 2
+                for key in ("home", "draw", "away")
+            ))
+        market_n = len(market_rows)
+        model_ll_market_sample = sum(model_market_ll) / market_n
+        market_ll = sum(closing_market_ll) / market_n
+        model_brier_market_sample = sum(model_market_brier) / market_n
+        market_brier = sum(closing_market_brier) / market_n
+        source_counts: dict[str, int] = {}
+        timing_counts: dict[str, int] = {}
+        for row in market_rows:
+            source = row.get("historical_odds_source") or "unknown"
+            timing = row.get("historical_odds_timing") or "unknown"
+            source_counts[source] = source_counts.get(source, 0) + 1
+            timing_counts[timing] = timing_counts.get(timing, 0) + 1
+        market_comparison = {
+            "matches_compared": market_n,
+            "odds_coverage": f"{market_n}/{n}",
+            "model_log_loss": model_ll_market_sample,
+            "market_no_vig_log_loss": market_ll,
+            "model_minus_market_log_loss": model_ll_market_sample - market_ll,
+            "model_brier": model_brier_market_sample,
+            "market_no_vig_brier": market_brier,
+            "model_minus_market_brier": model_brier_market_sample - market_brier,
+            "odds_source_counts": source_counts,
+            "odds_timing_counts": timing_counts,
+            "interpretation": "Positive model_minus_market values mean the model scores worse than the no-vig market.",
+        }
     return {
         "success": True, "status": "EVALUATED_PROBABILITY_QUALITY_ONLY",
         "fixtures_received": len(fixtures), "fixtures_evaluated": n,
@@ -196,8 +302,11 @@ def run_walk_forward_backtest(
             "over_2_5_brier_score": sum(brier_over) / n,
         },
         "predictions": predictions,
+        "market_comparison": market_comparison,
         "profitability_evaluated": False,
-        "odds_coverage": sum(bool(p.get("historical_odds") and all(p["historical_odds"].get(k) for k in ("home", "draw", "away"))) for p in predictions),
+        "odds_coverage": len(market_rows),
+        "odds_coverage_total": n,
+        "odds_coverage_rate": len(market_rows) / n if n else 0.0,
         "profitability_reason": "Historical closing odds may be present, but no timestamped opening/closing series is available; ROI and CLV are not calculated by this baseline.",
         "warning": "This is an initial experimental baseline. It does not establish profitability or VALUE_BET eligibility.",
     }

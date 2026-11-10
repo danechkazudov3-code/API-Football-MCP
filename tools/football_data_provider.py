@@ -42,6 +42,40 @@ def _number(row: dict[str, str], key: str) -> float | None:
     return value if value > 1.0 else None
 
 
+_ODDS_COLUMN_PRIORITY = (
+    ("avg_closing", ("AvgCH", "AvgCD", "AvgCA")),
+    ("bet365_closing", ("B365CH", "B365CD", "B365CA")),
+    ("avg_opening", ("AvgH", "AvgD", "AvgA")),
+    ("bet365_opening", ("B365H", "B365D", "B365A")),
+    # Legacy Football-Data average-price columns used by older seasons/files.
+    ("legacy_average", ("BbAvH", "BbAvD", "BbAvA")),
+)
+
+
+def _extract_historical_odds(row: dict[str, str]) -> dict[str, Any]:
+    """Select one complete 1X2 market snapshot; never mix sources or timestamps."""
+    for source, columns in _ODDS_COLUMN_PRIORITY:
+        prices = [_number(row, column) for column in columns]
+        if all(price is not None for price in prices):
+            return {
+                "home": prices[0],
+                "draw": prices[1],
+                "away": prices[2],
+                "source": f"Football-Data.co.uk {source} odds",
+                "source_columns": {
+                    "home": columns[0], "draw": columns[1], "away": columns[2],
+                },
+                "odds_timing": "closing" if source.endswith("closing") else (
+                    "opening" if source.endswith("opening") else "legacy_unspecified"
+                ),
+            }
+    return {
+        "home": None, "draw": None, "away": None,
+        "source": None, "source_columns": {},
+        "odds_timing": None,
+    }
+
+
 def parse_football_data_csv(
     content: str,
     *,
@@ -81,12 +115,7 @@ def parse_football_data_csv(
     ):
         home_name = row["HomeTeam"].strip()
         away_name = row["AwayTeam"].strip()
-        odds = {
-            "home": _number(row, "BbAvH"),
-            "draw": _number(row, "BbAvD"),
-            "away": _number(row, "BbAvA"),
-            "source": "Football-Data.co.uk bookmaker average closing odds",
-        }
+        odds = _extract_historical_odds(row)
         fixtures.append({
             "fixture": {
                 "id": index,
