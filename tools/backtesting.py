@@ -245,13 +245,17 @@ def run_walk_forward_backtest(
             market_probs = row["market_probabilities"]
             actual = row["actual_result"]
             model_market_ll.append(-_safe_log(model_probs[actual]))
-            closing_market_ll.append(-_safe_log(market_probs[actual]))
+            market_actual_key = {"home_win": "home", "draw": "draw", "away_win": "away"}[actual]
+            closing_market_ll.append(-_safe_log(market_probs[market_actual_key]))
             model_market_brier.append(sum(
                 (model_probs[key] - (1.0 if key == actual else 0.0)) ** 2
                 for key in ("home_win", "draw", "away_win")
             ))
+            market_outcome_keys = {
+                "home": "home_win", "draw": "draw", "away": "away_win",
+            }
             closing_market_brier.append(sum(
-                (market_probs[key] - (1.0 if key == actual else 0.0)) ** 2
+                (market_probs[key] - (1.0 if market_outcome_keys[key] == actual else 0.0)) ** 2
                 for key in ("home", "draw", "away")
             ))
         market_n = len(market_rows)
