@@ -60,9 +60,11 @@ def extract_best_prices(
         for bookmaker in fixture.get("bookmakers") or []:
             book_name = bookmaker.get("name", "Unknown")
             normalize = lambda value: "".join(ch for ch in str(value).casefold() if ch.isalnum())
-            if allowed_bookmakers is not None and normalize(book_name) not in {
-                normalize(name) for name in allowed_bookmakers
-            }:
+            allowed_names = {normalize(name) for name in (allowed_bookmakers or set())}
+            if allowed_bookmakers is not None and not any(
+                normalize(book_name) == name or normalize(book_name).startswith(name)
+                for name in allowed_names
+            ):
                 continue
             markets: dict[str, dict[str, float]] = {}
 
@@ -195,7 +197,7 @@ async def predict_match_bet(fixture_id: int) -> dict[str, Any]:
         "odds_error": prices_response.get("error") if not prices_response.get("success") else None,
         "warning": (
             "Experimental Poisson baseline only; it has not been calibrated or backtested. "
-            "A positive point-estimate EV is LEAN, never VALUE_BET, until validation."
+            "Positive EV plus positive PARI no-vig edge may be labelled LEAN; VALUE_BET remains disabled until validation."
         ),
         "rate_limit_remaining": prices_response.get("rate_limit_remaining"),
     }
