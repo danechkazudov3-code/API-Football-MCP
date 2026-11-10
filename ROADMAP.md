@@ -50,3 +50,15 @@ A task is complete only when:
 
 ## Working rule
 Work on one priority at a time. Do not start a lower-priority feature while a higher-priority correctness or validation issue remains unresolved, unless the user explicitly changes priorities.
+
+## Model v3 implementation status — 2026-11-10
+- [x] Time-decayed recent form with a four-match half-life (draft PR #2; not merged).
+- [x] Home/away venue-specific recent sample selection when at least three matches exist (draft PR #2; not merged).
+- [x] Opponent attack/defence adjustment for current fixtures using standings (draft PR #2; not merged).
+- [x] Historical backtest opponent ratings reconstructed only from prior fixtures, with same-day leakage protection (draft PR #2; not merged).
+- [x] Blend season venue rates with adjusted recent form and retain a shrunk fallback (draft PR #2; not merged).
+- [ ] Add xG features where source coverage is reliable.
+- [ ] Add lineup/player impact and rest/travel features only when reliable data exists.
+- [ ] Fit and compare Dixon-Coles or other low-score correction using training data.
+- [ ] Run broader time-safe out-of-sample evaluation, calibration and market-specific minimum sample checks.
+- [ ] Add timestamped historical odds/CLV and ROI evaluation before enabling VALUE_BET.
