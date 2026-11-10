@@ -73,3 +73,17 @@ timestamp proves the bookmaker accepted a wager at that price.
 
 The experimental model remains unvalidated. These pricing metrics do not
 promote a candidate to VALUE_BET.
+
+
+## Model v3 inputs
+
+The forecast layer now uses the model's time-decayed, opponent-adjusted recent
+form when available. Home-only and away-only recent samples are used when at
+least three matches are present; otherwise the full recent sample is used.
+For live prematch analysis, opponent strength is proxied by current season
+standings. For historical walk-forward evaluation, opponent indices are
+reconstructed exclusively from prior results and shrunk toward neutral.
+
+These adjustments improve feature construction but do not constitute model
+calibration or proof of betting profitability. The independent-Poisson
+probabilities remain experimental and VALUE_BET remains disabled.
