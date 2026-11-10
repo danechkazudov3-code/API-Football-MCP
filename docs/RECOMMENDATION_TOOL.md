@@ -5,8 +5,8 @@ The MCP tool `predict_match_bet(fixture_id)` provides a first end-to-end pre-mat
 ## Current behavior
 
 1. Calls `analyze_match` to load the fixture, recent form and experimental Poisson market probabilities.
-2. Makes one unfiltered pre-match `/odds` request for that fixture.
-3. Reads the returned bookmakers without requiring a specific bookmaker.
+2. Makes one pre-match `/odds` request for that fixture.
+3. Filters the returned prices to PARI only; it never substitutes another bookmaker.
 4. Finds the best returned decimal price for supported selections:
    - Match Winner: Home / Draw / Away
    - Goals Over/Under: Over 2.5 / Under 2.5
@@ -16,7 +16,7 @@ The MCP tool `predict_match_bet(fixture_id)` provides a first end-to-end pre-mat
 
 ## Status safety
 
-The current Poisson baseline is experimental, uses only a small recent-form sample, and is not calibrated or backtested. Consequently, `model_validated=False` is always passed to the pricing layer. Positive point-estimate EV can be labelled LEAN, but never VALUE_BET. Missing odds or probabilities produce INSUFFICIENT_DATA. This is intentional.
+The current Poisson baseline is experimental, uses only a small recent-form sample, and is not calibrated or backtested. Consequently, `model_validated=False` is always passed to the pricing layer. Positive point-estimate EV is not enough: a complete PARI market and strictly positive no-vig edge are required even for LEAN. Missing PARI odds, an incomplete PARI market, or missing edge produces INSUFFICIENT_DATA. Non-positive edge produces NO_BET. This is intentional.
 
 ## Limitations / next work
 
@@ -39,7 +39,7 @@ The candidate ranker now prefers decimal odds from **1.50 to 2.50** when candida
 - 1.50–2.50: marked `PREFERRED`.
 - Above 2.50: marked `HIGH_VARIANCE`; still shown and requires stronger scrutiny.
 
-The status / EV assessment remains separate from the odds profile. A high coefficient alone never creates value. The primary recommendation first respects evidence status, then the preferred odds profile, then conservative EV and model probability. These default bands are configurable product policy to revisit after backtesting; they do not guarantee profitability.
+The status / EV assessment remains separate from the odds profile. A high coefficient alone never creates value. The primary recommendation respects evidence status, then EV and model probability; odds bands are metadata only and do not affect ranking. A separate `most_likely_outcome` field reports the candidate with the highest model probability, independently of its price or betting value.
 
 
 ## Bookmaker-consistent pricing and timestamps
@@ -87,3 +87,10 @@ reconstructed exclusively from prior results and shrunk toward neutral.
 These adjustments improve feature construction but do not constitute model
 calibration or proof of betting profitability. The independent-Poisson
 probabilities remain experimental and VALUE_BET remains disabled.
+
+
+## Current MyAnalytics bookmaker policy
+
+The automatic pre-match recommendation tool currently accepts PARI quotes only. If PARI is absent from the API-Football response, it returns unpriced candidates / `INSUFFICIENT_DATA` rather than silently using another bookmaker. This is an execution policy for the current manual PARI workflow, not a limitation of the probability model.
+
+A candidate can be `LEAN` only when both point-estimate EV is non-negative and no-vig edge is strictly positive. `VALUE_BET` additionally requires validated model status, an uncertainty lower bound, positive conservative edge, and the configured conservative EV threshold.
