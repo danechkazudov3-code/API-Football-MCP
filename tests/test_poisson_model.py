@@ -122,3 +122,18 @@ def test_recent_form_is_recency_weighted_and_adjusted_for_opponent_strength():
     assert result["average_goals_conceded"] == pytest.approx(expected_conceded, abs=1e-4)
     assert result["opponent_adjusted_matches"] == 2
     assert result["neutral_opponent_matches"] == 0
+
+
+def test_recent_form_adjustment_accepts_string_opponent_keys():
+    form = {
+        "available": True, "matches_played": 1,
+        "matches": [{"date": "2026-10-01", "opponent_id": "Club B",
+                     "scored": 2, "conceded": 1}],
+    }
+    result = adjust_recent_form_for_opponents(form, {
+        "Club B": {"attack_index": 1.5, "defence_index": 0.5}
+    })
+    assert result["opponent_adjustment_available"] is True
+    assert result["opponent_adjusted_matches"] == 1
+    assert result["average_goals_scored"] == pytest.approx(4.0)
+    assert result["average_goals_conceded"] == pytest.approx(2 / 1.5)
