@@ -26,11 +26,11 @@ The scanner automatically attempts to journal each analyzed fixture and returns 
 
 ## Storage and production activation
 
-The implementation uses SQLite (Python standard library). It is deliberately **disabled by default**. Set `PREDICTION_JOURNAL_DB_PATH` to enable it.
+The journal supports SQLite and PostgreSQL. It is deliberately **disabled by default**. Set `PREDICTION_JOURNAL_DATABASE_URL` (preferred for managed databases) or `PREDICTION_JOURNAL_DB_PATH` (SQLite) to enable it.
 
-Do not point this variable at the normal Render container filesystem: the current Render web service uses the Free plan and has no persistent disk or managed database attached. Data stored on its ordinary filesystem can disappear after a restart or redeploy.
+Do not point the SQLite path at the normal Render container filesystem: the current Render web service uses the Free plan and has no persistent disk or managed database attached. Data stored on its ordinary filesystem can disappear after a restart or redeploy. PostgreSQL uses the `psycopg` driver and a managed database URL.
 
-Before enabling production writes, attach a persistent storage solution and set the variable to a path on that persistent volume (for example, `/var/data/prediction_journal.sqlite3`). Alternatively, migrate the adapter to managed PostgreSQL. A configured path is reported as `PATH_CONFIGURED_NOT_VERIFIED`; the application cannot prove that the path is backed by durable storage.
+Before enabling production writes, attach persistent storage or configure managed PostgreSQL. For Render, set `PREDICTION_JOURNAL_DATABASE_URL` to the database's internal connection URL. A configured path is reported as `PATH_CONFIGURED_NOT_VERIFIED`; the application cannot prove that the path is backed by durable storage.
 
 The test suite uses temporary SQLite databases and verifies snapshot creation, odds observations and settlement without requiring an external service.
 
