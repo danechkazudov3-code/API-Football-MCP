@@ -31,83 +31,125 @@ def _db_path() -> str | None:
     return value or None
 
 
-def _connect() -> sqlite3.Connection | None:
+def _database_url() -> str | None:
+    return (
+        os.environ.get("PREDICTION_JOURNAL_DATABASE_URL", "").strip()
+        or os.environ.get("DATABASE_URL", "").strip()
+        or None
+    )
+
+
+class _JournalConnection:
+    """Small adapter that keeps journal SQL compatible across SQLite/Postgres."""
+
+    def __init__(self, connection: Any, backend: str):
+        self.connection = connection
+        self.backend = backend
+
+    def execute(self, sql: str, params: tuple | list = ()):
+        if self.backend == "postgres":
+            sql = sql.replace("?", "%s")
+        return self.connection.execute(sql, params)
+
+    def __enter__(self):
+        self.connection.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return self.connection.__exit__(exc_type, exc, tb)
+
+    def close(self):
+        self.connection.close()
+
+
+def _connect() -> _JournalConnection | None:
+    database_url = _database_url()
+    if database_url:
+        try:
+            import psycopg
+            from psycopg.rows import dict_row
+        except ImportError as exc:
+            raise RuntimeError("PostgreSQL journal configured but psycopg is not installed.") from exc
+        connection = psycopg.connect(database_url, connect_timeout=10, row_factory=dict_row)
+        wrapped = _JournalConnection(connection, "postgres")
+        _initialize(wrapped)
+        return wrapped
+
     path = _db_path()
     if not path:
         return None
-    parent = Path(path).expanduser().parent
-    parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(str(Path(path).expanduser()), timeout=15)
+    expanded = Path(path).expanduser()
+    expanded.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(str(expanded), timeout=15)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA busy_timeout = 15000")
     connection.execute("PRAGMA foreign_keys = ON")
     connection.execute("PRAGMA journal_mode = WAL")
-    _initialize(connection)
-    return connection
+    wrapped = _JournalConnection(connection, "sqlite")
+    _initialize(wrapped)
+    return wrapped
 
 
-def _initialize(connection: sqlite3.Connection) -> None:
-    connection.executescript(
-        """
-        CREATE TABLE IF NOT EXISTS prediction_snapshots (
-            id TEXT PRIMARY KEY,
-            captured_at TEXT NOT NULL,
-            mode TEXT NOT NULL,
-            data_source TEXT,
-            fixture_id TEXT,
-            league_id TEXT,
-            league_name TEXT,
-            season INTEGER,
-            kickoff_at TEXT,
-            home_team TEXT,
-            away_team TEXT,
-            model_version TEXT,
-            model_validated INTEGER NOT NULL DEFAULT 0,
-            payload_json TEXT NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_prediction_snapshots_fixture
-            ON prediction_snapshots(fixture_id, captured_at);
-        CREATE TABLE IF NOT EXISTS prediction_candidates (
-            id TEXT PRIMARY KEY,
-            snapshot_id TEXT NOT NULL REFERENCES prediction_snapshots(id),
-            market TEXT,
-            selection TEXT,
-            model_probability REAL,
-            fair_odds REAL,
-            status TEXT,
-            bookmaker TEXT,
-            initial_odds REAL,
-            odds_source TEXT,
-            odds_observed_at TEXT,
-            provider_updated_at TEXT,
-            outcome TEXT,
-            actual_score TEXT,
-            settled_at TEXT
-        );
-        CREATE INDEX IF NOT EXISTS idx_prediction_candidates_status
-            ON prediction_candidates(status);
-        CREATE INDEX IF NOT EXISTS idx_prediction_candidates_snapshot
-            ON prediction_candidates(snapshot_id);
-        CREATE TABLE IF NOT EXISTS prediction_odds_history (
-            id TEXT PRIMARY KEY,
-            candidate_id TEXT NOT NULL REFERENCES prediction_candidates(id),
-            bookmaker TEXT NOT NULL,
-            decimal_odds REAL NOT NULL,
-            source TEXT NOT NULL,
-            captured_at TEXT NOT NULL,
-            provider_updated_at TEXT
-        );
-        CREATE INDEX IF NOT EXISTS idx_prediction_odds_candidate
-            ON prediction_odds_history(candidate_id, captured_at);
-        CREATE TABLE IF NOT EXISTS journal_metadata (
-            key TEXT PRIMARY KEY,
-            value TEXT NOT NULL
-        );
-        INSERT OR REPLACE INTO journal_metadata(key, value)
-            VALUES ('schema_version', '1');
-        """
-    )
-    connection.commit()
+def _initialize(connection: _JournalConnection) -> None:
+    schema = [
+        """CREATE TABLE IF NOT EXISTS prediction_snapshots (
+            id TEXT PRIMARY KEY, captured_at TEXT NOT NULL, mode TEXT NOT NULL,
+            data_source TEXT, fixture_id TEXT, league_id TEXT, league_name TEXT,
+            season INTEGER, kickoff_at TEXT, home_team TEXT, away_team TEXT,
+            model_version TEXT, model_validated INTEGER NOT NULL DEFAULT 0,
+            payload_json TEXT NOT NULL)""",
+        """CREATE INDEX IF NOT EXISTS idx_prediction_snapshots_fixture
+            ON prediction_snapshots(fixture_id, captured_at)""",
+        """CREATE TABLE IF NOT EXISTS prediction_candidates (
+            id TEXT PRIMARY KEY, snapshot_id TEXT NOT NULL REFERENCES prediction_snapshots(id),
+            market TEXT, selection TEXT, model_probability REAL, fair_odds REAL,
+            status TEXT, bookmaker TEXT, initial_odds REAL, odds_source TEXT,
+            odds_observed_at TEXT, provider_updated_at TEXT, outcome TEXT,
+            actual_score TEXT, settled_at TEXT)""",
+        """CREATE INDEX IF NOT EXISTS idx_prediction_candidates_status
+            ON prediction_candidates(status)""",
+        """CREATE INDEX IF NOT EXISTS idx_prediction_candidates_snapshot
+            ON prediction_candidates(snapshot_id)""",
+        """CREATE TABLE IF NOT EXISTS prediction_odds_history (
+            id TEXT PRIMARY KEY, candidate_id TEXT NOT NULL REFERENCES prediction_candidates(id),
+            bookmaker TEXT NOT NULL, decimal_odds REAL NOT NULL, source TEXT NOT NULL,
+            captured_at TEXT NOT NULL, provider_updated_at TEXT)""",
+        """CREATE INDEX IF NOT EXISTS idx_prediction_odds_candidate
+            ON prediction_odds_history(candidate_id, captured_at)""",
+        """CREATE TABLE IF NOT EXISTS journal_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)""",
+    ]
+    for statement in schema:
+        connection.execute(statement)
+    if connection.backend == "postgres":
+        connection.execute(
+            """INSERT INTO journal_metadata(key, value) VALUES ('schema_version', '1')
+               ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value"""
+        )
+    else:
+        connection.execute(
+            "INSERT OR REPLACE INTO journal_metadata(key, value) VALUES ('schema_version', '1')"
+        )
+    connection.connection.commit()
+
+
+def _storage_errors() -> tuple[type[BaseException], ...]:
+    errors: tuple[type[BaseException], ...] = (OSError, sqlite3.Error, RuntimeError)
+    try:
+        import psycopg
+        errors += (psycopg.Error,)
+    except ImportError:
+        pass
+    return errors
+
+
+def _configured() -> bool:
+    return bool(_database_url() or _db_path())
+
+
+def _scalar(row: Any) -> Any:
+    if isinstance(row, dict):
+        return next(iter(row.values()))
+    return row[0]
 
 
 def _float_or_none(value: Any) -> float | None:
@@ -131,15 +173,14 @@ def record_scan_reports(
     mode: str = "PREMATCH",
 ) -> dict[str, Any]:
     """Append every match/candidate from a scan as an immutable forecast snapshot."""
-    path = _db_path()
-    if not path:
+    if not _configured():
         return {
             "enabled": False, "recorded": 0,
             "reason": "PREDICTION_JOURNAL_DB_PATH is not configured; no persistent journal writes occurred.",
         }
     try:
         connection = _connect()
-    except (OSError, sqlite3.Error) as exc:
+    except _storage_errors() as exc:
         return {"enabled": False, "recorded": 0, "reason": f"Journal storage unavailable: {exc}"}
     if connection is None:
         return {"enabled": False, "recorded": 0, "reason": "Journal database is not configured."}
@@ -225,24 +266,25 @@ def record_scan_reports(
 @mcp.tool()
 async def get_prediction_journal_status() -> dict[str, Any]:
     """Report whether the prediction journal is configured and how many records it contains."""
-    path = _db_path()
-    if not path:
+    if not _configured():
         return {
             "success": True, "enabled": False, "durability": "NOT_CONFIGURED",
-            "reason": "Set PREDICTION_JOURNAL_DB_PATH to a durable storage path. Render's default filesystem is ephemeral.",
+            "reason": "Configure PREDICTION_JOURNAL_DATABASE_URL (managed PostgreSQL) or PREDICTION_JOURNAL_DB_PATH (SQLite).",
         }
     connection = _connect()
     if connection is None:
         return {"success": False, "enabled": False, "reason": "Journal database is unavailable."}
     try:
-        snapshots = connection.execute("SELECT COUNT(*) FROM prediction_snapshots").fetchone()[0]
-        candidates = connection.execute("SELECT COUNT(*) FROM prediction_candidates").fetchone()[0]
-        odds = connection.execute("SELECT COUNT(*) FROM prediction_odds_history").fetchone()[0]
+        snapshots = _scalar(connection.execute("SELECT COUNT(*) FROM prediction_snapshots").fetchone())
+        candidates = _scalar(connection.execute("SELECT COUNT(*) FROM prediction_candidates").fetchone())
+        odds = _scalar(connection.execute("SELECT COUNT(*) FROM prediction_odds_history").fetchone())
+        backend = "postgres" if _database_url() else "sqlite"
+        durability = "MANAGED_DATABASE_CONFIGURED_NOT_VERIFIED" if backend == "postgres" else "PATH_CONFIGURED_NOT_VERIFIED"
         return {
-            "success": True, "enabled": True, "durability": "PATH_CONFIGURED_NOT_VERIFIED",
-            "database_path": path, "snapshots": snapshots,
+            "success": True, "enabled": True, "backend": backend, "durability": durability,
+            "database_path": _db_path() if backend == "sqlite" else None, "snapshots": snapshots,
             "candidates": candidates, "odds_observations": odds,
-            "note": "A configured path is not proof of durable storage; verify that it is on a persistent disk or managed database.",
+            "note": "Configuration is not proof of backup/retention; verify the provider's persistence and backup policy.",
         }
     finally:
         connection.close()
