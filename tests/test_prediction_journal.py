@@ -112,3 +112,62 @@ def test_journal_rejects_invalid_odds_and_outcomes(tmp_path, monkeypatch):
     assert bad_odds["success"] is False
     bad_outcome = asyncio.run(settle_prediction_candidate(candidate_id, "maybe"))
     assert bad_outcome["success"] is False
+
+
+def test_postgres_backend_is_selected_and_status_is_readable(monkeypatch):
+    import sys
+    import types
+
+    monkeypatch.delenv("PREDICTION_JOURNAL_DB_PATH", raising=False)
+    monkeypatch.setenv("PREDICTION_JOURNAL_DATABASE_URL", "postgresql://test/test")
+
+    class Cursor:
+        def __init__(self, row=None):
+            self.row = row
+            self.rowcount = 1
+
+        def fetchone(self):
+            return self.row
+
+        def fetchall(self):
+            return []
+
+    class FakeConnection:
+        def __init__(self):
+            self.closed = False
+            self.statements = []
+
+        def execute(self, sql, params=()):
+            self.statements.append(sql)
+            if "COUNT(*)" in sql:
+                return Cursor({"count": 0})
+            return Cursor()
+
+        def commit(self):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def close(self):
+            self.closed = True
+
+    fake_connection = FakeConnection()
+    fake_psycopg = types.ModuleType("psycopg")
+    fake_psycopg.Error = Exception
+    fake_psycopg.connect = lambda *args, **kwargs: fake_connection
+    fake_rows = types.ModuleType("psycopg.rows")
+    fake_rows.dict_row = object()
+    monkeypatch.setitem(sys.modules, "psycopg", fake_psycopg)
+    monkeypatch.setitem(sys.modules, "psycopg.rows", fake_rows)
+
+    status = asyncio.run(get_prediction_journal_status())
+    assert status["success"] is True
+    assert status["backend"] == "postgres"
+    assert status["snapshots"] == 0
+    assert status["candidates"] == 0
+    assert status["odds_observations"] == 0
+    assert any("CREATE TABLE IF NOT EXISTS prediction_snapshots" in sql for sql in fake_connection.statements)
