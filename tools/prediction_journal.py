@@ -257,7 +257,7 @@ def record_scan_reports(
                         )
                 recorded += 1
         return {"enabled": True, "recorded": recorded, "captured_at": captured_at}
-    except (OSError, sqlite3.Error) as exc:
+    except _storage_errors() as exc:
         return {"enabled": False, "recorded": 0, "reason": f"Journal write failed: {exc}"}
     finally:
         connection.close()
