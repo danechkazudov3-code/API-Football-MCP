@@ -2,15 +2,21 @@
 
 from tools import (
     analyzer,
+    backtesting,
+    dashboard,
     coaches,
     fixtures,
     injuries,
     odds,
     players,
     predictions,
+    prediction_journal,
+    recommendation,
+    live_recommendation,
     reference,
     search,
     sidelined,
+    scanner,
     standings,
     teams,
     transfers,
@@ -20,6 +26,8 @@ from tools import (
 
 __all__ = [
     "analyzer",
+    "backtesting",
+    "dashboard",
     "reference",
     "teams",
     "players",
@@ -30,8 +38,12 @@ __all__ = [
     "transfers",
     "trophies",
     "sidelined",
+    "scanner",
     "injuries",
     "predictions",
+    "prediction_journal",
     "odds",
     "search",
+    "recommendation",
+    "live_recommendation",
 ]

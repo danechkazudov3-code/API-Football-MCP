@@ -4,8 +4,8 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that 
 
 ## Features
 
-- 44 MCP tools covering teams, players, fixtures, standings, transfers, odds, and more
-- Streamable HTTP, SSE, and stdio transports
+- 48 MCP tools covering teams, players, fixtures, standings, transfers, odds, automatic pre-match picks, live picks, and historical backtesting
+- Authenticated Streamable HTTP and local stdio transports
 - Async HTTP client with rate-limit tracking and error handling
 - Docker support for easy deployment
 
@@ -34,7 +34,9 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that 
    Edit `.env` and add your API-Football key:
    ```
    API_FOOTBALL_KEY=your_api_key_here
+   MCP_AUTH_TOKEN=replace_with_a_long_random_secret
    ```
+   Generate a unique high-entropy token for `MCP_AUTH_TOKEN`. Do not commit it or share it publicly. Remote Streamable HTTP requests must send it as a Bearer token.
 
 ## Running the Server
 
@@ -45,14 +47,11 @@ python server.py
 # Stdio transport (for direct MCP client piping)
 python server.py --transport stdio
 
-# SSE transport on a custom port
-python server.py --transport sse --port 9000
-
 # Custom host and port
 python server.py --host 127.0.0.1 --port 3000
 ```
 
-The MCP endpoint will be available at `http://localhost:8111/mcp`.
+The MCP endpoint will be available at `http://localhost:8111/mcp`. It rejects requests without a valid `Authorization: Bearer ...` header. Local stdio connections do not use HTTP bearer authentication; their security boundary is the local process.
 
 ### Docker
 
@@ -78,7 +77,10 @@ To connect this server to an MCP client, add it to your MCP config:
   "mcpServers": {
     "api-football": {
       "type": "streamable-http",
-      "url": "http://localhost:8111/mcp"
+      "url": "http://localhost:8111/mcp",
+      "headers": {
+        "Authorization": "Bearer replace_with_the_same_MCP_AUTH_TOKEN"
+      }
     }
   }
 }
@@ -206,7 +208,11 @@ Use these first to find IDs by name, then pass IDs to other tools.
 
 | Tool | Description |
 |------|-------------|
-| `get_predictions` | Match prediction with win/draw probabilities, advice, and team comparison |
+| `get_predictions` | API-Football's match prediction with win/draw probabilities, advice, and team comparison |
+| `predict_match_bet` | Experimental automatic pre-match pick using available bookmaker prices, fair odds, EV, no-vig edge, and visible candidate ranking |
+| `scan_best_bets` | Automatically scan upcoming fixtures and rank their primary betting opportunities with a quota-safe fixture cap |
+| `predict_live_match_bet` | Separate in-play model using current score, elapsed time, live shots, red cards, and live odds |
+| `backtest_league` | Chronological walk-forward probability evaluation on historical league fixtures (no ROI without historical odds) |
 
 ### Odds
 
@@ -268,7 +274,11 @@ API-Football/
 │   ├── sidelined.py    # Injury/absence history
 │   ├── injuries.py     # Current injuries
 │   ├── predictions.py  # Match predictions
-│   └── odds.py         # Betting odds, bookmakers, bet types
+│   ├── odds.py         # Betting odds, bookmakers, bet types
+│   ├── poisson_model.py # Experimental league-adjusted Poisson model
+│   ├── live_model.py    # Separate remaining-time in-play model
+│   ├── live_recommendation.py # Live MCP recommendation workflow
+│   └── backtesting.py   # Chronological walk-forward backtest
 ├── tests/              # Test suite
 │   ├── conftest.py     # Shared fixtures and mock helpers
 │   ├── test_*.py       # Unit tests (mocked)
@@ -283,3 +293,17 @@ API-Football/
 ## License
 
 MIT
+
+
+## Prediction Journal
+
+Pre-match scans can append immutable forecast snapshots, candidates, timestamped odds observations and settled outcomes. The journal is disabled by default until `PREDICTION_JOURNAL_DB_PATH` points to durable storage. See [`docs/PREDICTION_JOURNAL.md`](docs/PREDICTION_JOURNAL.md) before enabling it on Render; the current Free service filesystem is ephemeral.
+
+## MyAnalytics Prediction Engine
+
+The prediction engine requirements and implementation roadmap are documented in [`docs/PREDICTION_ENGINE_SPEC.md`](docs/PREDICTION_ENGINE_SPEC.md). The first pure pricing/ranking utilities are in `tools/prediction.py`, with unit tests in `tests/test_prediction.py`. The experimental Poisson baseline now uses league goal baselines and home/away team scoring and conceding rates when available, with a shrunk recent-form fallback. A separate in-play model estimates goals remaining from match time, score, live shots and red cards. A chronological walk-forward backtest reports probability metrics without inventing ROI when historical odds are unavailable. The MCP tool `predict_match_bet(fixture_id)` selects a primary pre-match candidate, compares supported markets with the best available bookmaker prices, and keeps all candidates visible. The model is not calibrated or backtested: positive point-estimate EV is capped at LEAN, and VALUE_BET remains disabled until validation. See `docs/RECOMMENDATION_TOOL.md` and `docs/BACKTESTING_AND_LIVE.md`.
+
+
+### Browser Backtest Interface
+
+A small password-protected browser interface is available at `/tester` on the deployed service. Set the Render environment variable `ANALYTICS_DASHBOARD_TOKEN` to a private access code. The page sends it only as a Bearer token to the same service; the API-Football key remains server-side. The `/api/backtest` endpoint runs the same chronological walk-forward evaluator as `backtest_league`. Keep the access code private. Each run consumes API-Football request quota and reports probability metrics only, not ROI.

@@ -108,8 +108,8 @@ def _summarize_available_bets(result: dict) -> dict:
     }
 
 
-def _simplify_live_odds(result: dict, bookmaker_name: str = "Bet365") -> dict:
-    """Flatten and simplify live odds response, filtered to one bookmaker."""
+def _simplify_live_odds(result: dict, bookmaker_name: str | None = None) -> dict:
+    """Flatten live odds; preserve all returned bookmakers by default."""
     if not result.get("success") or not result.get("data"):
         return result
 
@@ -121,10 +121,12 @@ def _simplify_live_odds(result: dict, bookmaker_name: str = "Bet365") -> dict:
         odds_list = []
         for bk in entry.get("bookmakers", []):
             bk_name = bk.get("name", "Unknown")
-            if bookmaker_name and bk_name != bookmaker_name:
+            if bookmaker_name and bk_name.lower() != bookmaker_name.lower():
                 continue
             for bet in bk.get("bets", []):
                 odds_list.append({
+                    "bookmaker_id": bk.get("id"),
+                    "bookmaker": bk_name,
                     "bet_id": bet.get("id"),
                     "bet_name": bet.get("name"),
                     "values": bet.get("values", []),
@@ -212,8 +214,8 @@ async def get_live_odds(
     """Get live/in-play betting odds.
 
     IMPORTANT: Use 'bet' to filter by bet type to keep response size manageable.
-    Note: live odds API does not support bookmaker filtering, so results are
-    trimmed to Bet365 only in the response.
+    Note: live odds API does not support bookmaker filtering. All returned
+    bookmakers are preserved so the caller can compare prices.
 
     Common bet type IDs:
         1 = Match Winner, 5 = Goals Over/Under, 8 = Both Teams Score
@@ -223,12 +225,12 @@ async def get_live_odds(
         league: League ID
         bet: Bet type ID filter (strongly recommended)
 
-    Returns live odds from Bet365 that update during matches.
+    Returns live odds from all bookmakers returned by API-Football.
     """
     result = await api_request("/odds/live", {
         "fixture": fixture, "league": league, "bet": bet,
     })
-    return _simplify_live_odds(result, bookmaker_name="Bet365")
+    return _simplify_live_odds(result)
 
 
 @mcp.tool()
